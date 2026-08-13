@@ -1094,7 +1094,47 @@ function fillFromOCR(data){
   });
 }
 
-// ---------- ESTIMATION APOGÉE (recherche web) ----------
+// ---------- RÉFÉRENTIEL D'APOGÉE (estimation instantanée, sans réseau) ----------
+// Fourchettes de garde typiques (années après le millésime), à titre indicatif.
+const APOGEE_PAR_CEPAGE = {
+  'Cabernet Sauvignon': [5, 15], 'Cabernet Franc': [4, 12], 'Merlot': [3, 10],
+  'Pinot Noir': [3, 10], 'Syrah': [4, 12], 'Grenache': [3, 10],
+  'Mourvèdre': [5, 15], 'Carignan': [2, 6], 'Cinsault': [1, 4],
+  'Gamay': [1, 4], 'Malbec': [4, 10], 'Petit Verdot': [5, 12],
+  'Tannat': [6, 15], 'Négrette': [2, 5],
+  'Chardonnay': [2, 6], 'Sauvignon Blanc': [1, 3], 'Chenin Blanc': [3, 12],
+  'Riesling': [3, 12], 'Gewurztraminer': [2, 8], 'Pinot Gris': [1, 4],
+  'Pinot Blanc': [1, 4], 'Viognier': [1, 3], 'Marsanne': [2, 8],
+  'Roussanne': [2, 8], 'Sémillon': [3, 12], 'Ugni Blanc': [1, 2],
+  'Colombard': [1, 2], 'Vermentino (Rolle)': [1, 3], 'Clairette': [1, 3],
+  'Grenache Blanc': [1, 4], 'Picpoul': [1, 2], 'Aligoté': [1, 3],
+  'Sylvaner': [1, 4], 'Mauzac': [1, 3]
+};
+const APOGEE_PAR_COULEUR = {
+  'Rouge': [3, 8], 'Blanc': [1, 4], 'Rosé': [0, 2],
+  'Effervescent': [2, 6], 'Liquoreux': [5, 20]
+};
+
+function estimateApogeeLocal(millesime, couleur, cepagesStr){
+  const annee = parseInt(millesime);
+  if(!annee) return null;
+  let range = null;
+  if(cepagesStr){
+    const premier = cepagesStr.split(',')[0].trim().toLowerCase();
+    const key = Object.keys(APOGEE_PAR_CEPAGE).find(k => k.toLowerCase() === premier);
+    if(key) range = APOGEE_PAR_CEPAGE[key];
+  }
+  if(!range && couleur) range = APOGEE_PAR_COULEUR[couleur];
+  if(!range) return null;
+  return {
+    apo_deb: annee + range[0],
+    apo_fin: annee + range[1],
+    source_guide: 'référentiel interne',
+    note: 'Estimation générique par cépage/millésime — approximative, pas propre à ce domaine.'
+  };
+}
+
+// ---------- ESTIMATION APOGÉE (recherche web, en complément du référentiel) ----------
 async function estimateApogee(){
   const statusEl = document.getElementById('apogeeStatus');
   const btn = document.getElementById('apogeeBtn');
@@ -1104,11 +1144,30 @@ async function estimateApogee(){
   const couleur = document.getElementById('f_couleur').value;
   const cepages = document.getElementById('f_cepages').value;
 
-  if(!domaine && !appellation){
-    statusEl.textContent = 'Renseigne au moins le domaine ou l\u2019appellation avant de lancer la recherche.';
+  if(!millesime){
+    statusEl.textContent = 'Renseigne au moins le millésime avant d\u2019estimer.';
     return;
   }
 
+  // 1) Référentiel local, instantané, sans réseau
+  const local = estimateApogeeLocal(millesime, couleur, cepages);
+  if(local){
+    document.getElementById('f_apo_deb').value = local.apo_deb;
+    document.getElementById('f_apo_fin').value = local.apo_fin;
+    statusEl.innerHTML = local.note + ' <button type="button" id="apogeeWebBtn" class="btn ghost" style="margin-top:6px;width:100%;">Affiner via recherche web</button>';
+    document.getElementById('apogeeWebBtn').onclick = ()=> estimateApogeeWeb(domaine, appellation, millesime, couleur, cepages, statusEl, btn);
+    return;
+  }
+
+  // 2) Pas de cépage/couleur exploitable localement -> direction la recherche web
+  estimateApogeeWeb(domaine, appellation, millesime, couleur, cepages, statusEl, btn);
+}
+
+async function estimateApogeeWeb(domaine, appellation, millesime, couleur, cepages, statusEl, btn){
+  if(!domaine && !appellation){
+    statusEl.textContent = 'Renseigne au moins le domaine ou l\u2019appellation pour la recherche web.';
+    return;
+  }
   statusEl.textContent = 'Recherche sur les guides en cours…';
   btn.disabled = true;
   try{
