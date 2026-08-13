@@ -481,6 +481,21 @@ function render(){
   }
 }
 
+// Statut réel : calculé automatiquement à partir de la fenêtre d'apogée et
+// de l'année en cours si elle est renseignée, sinon repli sur la valeur
+// saisie manuellement à l'ajout.
+function computeStatut(bottle){
+  const deb = parseInt(bottle.apo_deb);
+  const fin = parseInt(bottle.apo_fin);
+  if(deb && fin){
+    const annee = new Date().getFullYear();
+    if(annee < deb) return 'garde';
+    if(annee > fin) return 'aboire';
+    return 'apogee';
+  }
+  return bottle.statut || 'garde';
+}
+
 function couleurHex(c){
   switch(c){
     case 'Rouge': return '#7a2333';
@@ -543,7 +558,7 @@ function renderModule(mod, positionMap){
       const key = `${mod.id}:${r}:${c}`;
       const bottle = positionMap[key];
       const cell = document.createElement('button');
-      cell.className = 'cell ' + (bottle ? bottle.statut : 'empty');
+      cell.className = 'cell ' + (bottle ? computeStatut(bottle) : 'empty');
       if(bottle){
         const neck = document.createElement('span');
         neck.className = 'neck';
@@ -673,17 +688,18 @@ function ficheForm(mod, key, prefill){
 }
 
 function ficheView(b, key){
-  const statusLabel = {garde:'En garde', apogee:'À l\u2019apogée', aboire:'À boire en priorité'}[b.statut];
+  const auto = !!(parseInt(b.apo_deb) && parseInt(b.apo_fin));
+  const statut = computeStatut(b);
   return `
     <h2 class="serif">${b.domaine || 'Sans nom'}</h2>
     <div class="sub">${b.appellation || ''} ${b.millesime || ''}</div>
     <button type="button" class="btn ghost" id="nfcAssocBtn" style="width:100%;margin-bottom:8px;">Associer une puce NFC à cet emplacement</button>
     <div id="nfcAssocStatus" style="font-size:11px;color:var(--text-dim);margin-bottom:12px;min-height:14px;"></div>
-    <div class="field"><label>Statut</label>
-      <div class="status-pick">
-        <button type="button" data-s="garde" class="${b.statut==='garde'?'sel garde':''}">En garde</button>
-        <button type="button" data-s="apogee" class="${b.statut==='apogee'?'sel apogee':''}">Apogée</button>
-        <button type="button" data-s="aboire" class="${b.statut==='aboire'?'sel aboire':''}">À boire</button>
+    <div class="field"><label>Statut${auto ? ' — calculé automatiquement selon la fenêtre d\u2019apogée' : ''}</label>
+      <div class="status-pick" style="${auto ? 'opacity:0.55;pointer-events:none;' : ''}">
+        <button type="button" data-s="garde" class="${statut==='garde'?'sel garde':''}">En garde</button>
+        <button type="button" data-s="apogee" class="${statut==='apogee'?'sel apogee':''}">Apogée</button>
+        <button type="button" data-s="aboire" class="${statut==='aboire'?'sel aboire':''}">À boire</button>
       </div>
     </div>
     <div class="row2">
