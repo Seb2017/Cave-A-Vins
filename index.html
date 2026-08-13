@@ -1,0 +1,781 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
+<title>Cave</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,500;9..144,600&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg:#17140f;
+    --panel:#211c16;
+    --panel-2:#2a2319;
+    --line:#3a3228;
+    --text:#ede6d8;
+    --text-dim:#a79a87;
+    --gold:#c9a227;
+    --wine:#7a2333;
+    --wine-bright:#a13d4c;
+    --slate:#52708a;
+    --empty:#2f2820;
+  }
+  *{box-sizing:border-box;}
+  html,body{margin:0;padding:0;}
+  body{
+    background:var(--bg);
+    color:var(--text);
+    font-family:'Inter',sans-serif;
+    -webkit-font-smoothing:antialiased;
+    padding-bottom:60px;
+  }
+  h1,h2,h3,.serif{font-family:'Fraunces',serif;}
+
+  header{
+    padding:28px 20px 16px;
+    border-bottom:1px solid var(--line);
+    position:sticky;top:0;
+    background:linear-gradient(var(--bg) 85%, transparent);
+    z-index:10;
+  }
+  header h1{
+    margin:0;
+    font-size:28px;
+    font-weight:500;
+    letter-spacing:0.01em;
+  }
+  header p{
+    margin:4px 0 0;
+    color:var(--text-dim);
+    font-size:13px;
+  }
+
+  .tabs{
+    display:flex;
+    gap:6px;
+    margin-top:18px;
+    border-bottom:1px solid var(--line);
+  }
+  .tab{
+    background:none;border:none;
+    color:var(--text-dim);
+    font-family:'Inter',sans-serif;
+    font-size:14px;font-weight:600;
+    padding:10px 4px;
+    cursor:pointer;
+    border-bottom:2px solid transparent;
+    margin-right:18px;
+  }
+  .tab.active{color:var(--gold);border-bottom-color:var(--gold);}
+
+  .toolbar{
+    display:flex;justify-content:space-between;align-items:center;
+    margin-top:14px;
+  }
+  .btn{
+    font-family:'Inter',sans-serif;
+    font-size:13px;font-weight:600;
+    background:var(--panel-2);
+    color:var(--text);
+    border:1px solid var(--line);
+    border-radius:3px;
+    padding:8px 14px;
+    cursor:pointer;
+  }
+  .btn.gold{background:var(--gold);color:#1c1710;border:none;}
+  .btn.ghost{background:none;border:1px solid var(--line);color:var(--text-dim);}
+  .btn:active{transform:scale(0.98);}
+
+  main{padding:18px 16px 0;}
+
+  .module{
+    background:var(--panel);
+    border:1px solid var(--line);
+    border-radius:4px;
+    padding:16px;
+    margin-bottom:18px;
+  }
+  .module-head{
+    display:flex;justify-content:space-between;align-items:baseline;
+    margin-bottom:12px;
+  }
+  .module-head h3{margin:0;font-size:17px;font-weight:500;}
+  .module-type{color:var(--text-dim);font-size:12px;text-transform:uppercase;letter-spacing:0.06em;}
+
+  .grid-wrap{overflow-x:auto;}
+  .grid{
+    display:grid;
+    gap:6px;
+    width:max-content;
+  }
+  .cell{
+    width:34px;height:34px;
+    border-radius:3px;
+    background:var(--empty);
+    border:1px solid var(--line);
+    display:flex;align-items:center;justify-content:center;
+    cursor:pointer;
+    position:relative;
+    padding:0;
+  }
+  .cell .neck{
+    width:16px;height:16px;
+    border-radius:50%;
+  }
+  .cell.garde .neck{background:var(--slate);}
+  .cell.apogee .neck{background:var(--gold);}
+  .cell.aboire .neck{background:var(--wine-bright);}
+  .cell.empty:active{background:var(--panel-2);}
+  .cell.empty::after{
+    content:'+';
+    color:var(--line);
+    font-size:16px;
+  }
+  .cell.empty:active::after{color:var(--text-dim);}
+
+  .legend{
+    display:flex;gap:16px;flex-wrap:wrap;
+    margin:14px 16px 4px;
+    font-size:12px;color:var(--text-dim);
+  }
+  .legend span{display:inline-flex;align-items:center;gap:6px;}
+  .dot{width:10px;height:10px;border-radius:50%;display:inline-block;}
+  .dot.garde{background:var(--slate);}
+  .dot.apogee{background:var(--gold);}
+  .dot.aboire{background:var(--wine-bright);}
+
+  /* config mode */
+  .cfg-row{display:flex;gap:8px;margin-bottom:8px;align-items:center;flex-wrap:wrap;}
+  .cfg-row input{
+    background:var(--panel-2);border:1px solid var(--line);
+    color:var(--text);border-radius:3px;padding:7px 9px;font-size:13px;
+    font-family:'Inter',sans-serif;
+  }
+  .cfg-row input.name{flex:1;min-width:120px;}
+  .cfg-row input.num{width:56px;}
+  .cfg-row label{font-size:11px;color:var(--text-dim);margin-right:-4px;}
+  .add-module{
+    width:100%;background:none;border:1px dashed var(--line);
+    color:var(--text-dim);border-radius:4px;padding:12px;
+    font-family:'Inter',sans-serif;font-size:13px;cursor:pointer;
+  }
+
+  /* overlay sheet */
+  .overlay{
+    position:fixed;inset:0;background:rgba(0,0,0,0.55);
+    display:none;align-items:flex-end;z-index:50;
+  }
+  .overlay.show{display:flex;}
+  .sheet{
+    background:var(--panel);
+    border-top:1px solid var(--line);
+    border-radius:14px 14px 0 0;
+    width:100%;
+    max-height:88vh;
+    overflow-y:auto;
+    padding:20px 20px 28px;
+  }
+  .sheet h2{margin:0 0 2px;font-size:22px;font-weight:500;}
+  .sheet .sub{color:var(--text-dim);font-size:12px;margin-bottom:18px;}
+  .field{margin-bottom:12px;}
+  .field label{display:block;font-size:11px;color:var(--text-dim);margin-bottom:5px;text-transform:uppercase;letter-spacing:0.05em;}
+  .field input,.field select,.field textarea{
+    width:100%;background:var(--panel-2);border:1px solid var(--line);
+    color:var(--text);border-radius:4px;padding:10px;font-size:14px;
+    font-family:'Inter',sans-serif;
+  }
+  .field textarea{resize:vertical;min-height:50px;}
+  .row2{display:grid;grid-template-columns:1fr 1fr;gap:10px;}
+  .status-pick{display:flex;gap:8px;margin-top:4px;}
+  .status-pick button{
+    flex:1;padding:9px 0;border-radius:4px;border:1px solid var(--line);
+    background:var(--panel-2);color:var(--text-dim);font-size:12px;font-family:'Inter',sans-serif;
+  }
+  .status-pick button.sel.garde{background:var(--slate);color:#fff;border-color:var(--slate);}
+  .status-pick button.sel.apogee{background:var(--gold);color:#1c1710;border-color:var(--gold);}
+  .status-pick button.sel.aboire{background:var(--wine-bright);color:#fff;border-color:var(--wine-bright);}
+  .sheet-actions{display:flex;gap:10px;margin-top:18px;}
+  .sheet-actions .btn{flex:1;text-align:center;}
+
+  .note{
+    background:var(--panel-2);
+    border:1px solid var(--line);
+    border-radius:4px;
+    padding:10px 12px;
+    font-size:12px;
+    color:var(--text-dim);
+    margin:16px 16px 0;
+    line-height:1.5;
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <h1 class="serif">Cave</h1>
+  <p>Buanderie · Cuisine — vieillissement &amp; service</p>
+  <div class="tabs">
+    <button class="tab active" data-room="buanderie">Buanderie</button>
+    <button class="tab" data-room="cuisine">Cuisine</button>
+  </div>
+  <div class="toolbar">
+    <span id="roomHint" style="font-size:12px;color:var(--text-dim);"></span>
+    <button class="btn ghost" id="cfgToggle">Configurer</button>
+  </div>
+</header>
+
+<main id="main"></main>
+
+<div class="legend">
+  <span><i class="dot garde"></i> En garde</span>
+  <span><i class="dot apogee"></i> À l'apogée</span>
+  <span><i class="dot aboire"></i> À boire en priorité</span>
+</div>
+
+<p class="note">Connecté au Google Sheet via le proxy Apps Script — les modifications (bouteilles, modules) sont enregistrées en direct.</p>
+
+<div class="overlay" id="overlay">
+  <div class="sheet" id="sheet"></div>
+</div>
+
+<datalist id="dl_domaine"></datalist>
+<datalist id="dl_appellation">
+  <option value="Margaux"><option value="Pauillac"><option value="Saint-Julien">
+  <option value="Saint-Estèphe"><option value="Saint-Émilion"><option value="Pomerol">
+  <option value="Pessac-Léognan"><option value="Sauternes"><option value="Graves">
+  <option value="Gevrey-Chambertin"><option value="Chambolle-Musigny"><option value="Vosne-Romanée">
+  <option value="Nuits-Saint-Georges"><option value="Meursault"><option value="Puligny-Montrachet">
+  <option value="Chassagne-Montrachet"><option value="Volnay"><option value="Pommard">
+  <option value="Chablis"><option value="Mercurey"><option value="Pouilly-Fuissé">
+  <option value="Châteauneuf-du-Pape"><option value="Côte-Rôtie"><option value="Hermitage">
+  <option value="Crozes-Hermitage"><option value="Gigondas"><option value="Vacqueyras">
+  <option value="Cornas"><option value="Saint-Joseph"><option value="Condrieu">
+  <option value="Sancerre"><option value="Pouilly-Fumé"><option value="Vouvray">
+  <option value="Chinon"><option value="Bourgueil"><option value="Saumur-Champigny">
+  <option value="Menetou-Salon"><option value="Alsace Grand Cru"><option value="Riesling d'Alsace">
+  <option value="Champagne"><option value="Crémant"><option value="Bandol">
+  <option value="Côtes de Provence"><option value="Cassis"><option value="Minervois">
+  <option value="Corbières"><option value="Faugères"><option value="Saint-Chinian">
+  <option value="Fitou"><option value="Morgon"><option value="Fleurie">
+  <option value="Moulin-à-Vent"><option value="Brouilly"><option value="Cahors">
+  <option value="Madiran"><option value="Jurançon"><option value="Côtes du Rhône">
+  <option value="Rioja"><option value="Ribera del Duero"><option value="Chianti Classico">
+  <option value="Barolo"><option value="Barbaresco"><option value="Priorat">
+</datalist>
+<datalist id="dl_cepages">
+  <option value="Cabernet Sauvignon"><option value="Cabernet Franc"><option value="Merlot">
+  <option value="Pinot Noir"><option value="Syrah"><option value="Grenache">
+  <option value="Mourvèdre"><option value="Carignan"><option value="Cinsault">
+  <option value="Gamay"><option value="Malbec"><option value="Petit Verdot">
+  <option value="Tannat"><option value="Négrette"><option value="Chardonnay">
+  <option value="Sauvignon Blanc"><option value="Chenin Blanc"><option value="Riesling">
+  <option value="Gewurztraminer"><option value="Pinot Gris"><option value="Pinot Blanc">
+  <option value="Muscat"><option value="Viognier"><option value="Marsanne">
+  <option value="Roussanne"><option value="Sémillon"><option value="Ugni Blanc">
+  <option value="Colombard"><option value="Vermentino (Rolle)"><option value="Clairette">
+  <option value="Grenache Blanc"><option value="Picpoul"><option value="Aligoté">
+  <option value="Sylvaner"><option value="Mauzac">
+</datalist>
+
+<script>
+// ---------- STATE ----------
+let state = {
+  activeRoom: 'buanderie',
+  configMode: false,
+  loaded: false,
+  rooms: {
+    buanderie: {
+      label: 'Buanderie',
+      modules: [
+        { id:'m1', name:'Cave de vieillissement', type:'Cave à vin', rows:6, cols:8 },
+        { id:'m2', name:'Casier 1', type:'Casier bois', rows:5, cols:5 },
+        { id:'m3', name:'Casier 2', type:'Casier bois', rows:5, cols:5 },
+      ]
+    },
+    cuisine: {
+      label: 'Cuisine',
+      modules: [
+        { id:'m4', name:'Cave de service', type:'Cave à vin', rows:6, cols:6 },
+      ]
+    }
+  },
+  // bottles keyed par id STABLE (pas par position) — permet de garder
+  // l'historique même après une sortie de cave (position vidée, statut 'bue').
+  bottles: {}
+};
+
+function generateId(){
+  return 'b' + Date.now().toString(36) + Math.random().toString(36).slice(2,7);
+}
+
+// positionMap : key "moduleId:row:col" -> bouteille actuellement à cet emplacement
+// (exclut les bouteilles sorties/bues, qui gardent position vide)
+function getPositionMap(){
+  const map = {};
+  Object.values(state.bottles).forEach(b=>{
+    if(b.position) map[b.position] = b;
+  });
+  return map;
+}
+
+async function loadState(){
+  main.innerHTML = '<p style="color:var(--text-dim);font-size:13px;padding:20px 0;">Chargement de la cave…</p>';
+  try{
+    const res = await fetch(GAS_URL, { method:'POST', body: JSON.stringify({ action:'get_state' }) });
+    if(!res.ok) throw new Error('Réponse serveur ' + res.status);
+    const data = await res.json();
+    if(data.error) throw new Error(data.error);
+    if(data.rooms) state.rooms = data.rooms;
+    if(data.bottles) state.bottles = data.bottles;
+  }catch(err){
+    main.innerHTML = '<p style="color:var(--wine-bright);font-size:13px;padding:20px 0;">Connexion au Sheet impossible (' + err.message + '). Vérifie GAS_URL. Affichage hors-ligne.</p>';
+  }
+  state.loaded = true;
+  render();
+}
+
+async function saveModulesForRoom(roomKey){
+  try{
+    await fetch(GAS_URL, {
+      method:'POST',
+      body: JSON.stringify({ action:'save_modules', room: roomKey, modules: state.rooms[roomKey].modules })
+    });
+  }catch(err){ console.error('save_modules', err); }
+}
+
+async function saveBottle(bottle){
+  try{
+    await fetch(GAS_URL, {
+      method:'POST',
+      body: JSON.stringify({ action:'save_bottle', bottle })
+    });
+  }catch(err){ console.error('save_bottle', err); }
+}
+
+// ---------- RENDER ----------
+const main = document.getElementById('main');
+const roomHint = document.getElementById('roomHint');
+
+function render(){
+  const room = state.rooms[state.activeRoom];
+  roomHint.textContent = state.configMode ? 'Mode configuration' : room.label;
+  main.innerHTML = '';
+  const positionMap = getPositionMap();
+  room.modules.forEach(mod => main.appendChild(renderModule(mod, positionMap)));
+  if(state.configMode){
+    const addBtn = document.createElement('button');
+    addBtn.className = 'add-module';
+    addBtn.textContent = '+ Ajouter un module';
+    addBtn.onclick = () => addModule();
+    main.appendChild(addBtn);
+  }
+}
+
+function renderModule(mod, positionMap){
+  const wrap = document.createElement('div');
+  wrap.className = 'module';
+
+  if(state.configMode){
+    wrap.innerHTML = `
+      <div class="cfg-row">
+        <input class="name" value="${mod.name}" data-field="name" />
+      </div>
+      <div class="cfg-row">
+        <input class="name" value="${mod.type}" data-field="type" />
+      </div>
+      <div class="cfg-row">
+        <label>Rangées</label><input class="num" type="number" min="1" max="20" value="${mod.rows}" data-field="rows" />
+        <label>Colonnes</label><input class="num" type="number" min="1" max="20" value="${mod.cols}" data-field="cols" />
+        <button class="btn ghost" data-action="del">Supprimer</button>
+      </div>
+    `;
+    wrap.querySelectorAll('input').forEach(inp=>{
+      inp.addEventListener('change', e=>{
+        const f = e.target.dataset.field;
+        let v = e.target.value;
+        if(f==='rows'||f==='cols') v = Math.max(1, parseInt(v)||1);
+        mod[f] = v;
+        saveModulesForRoom(state.activeRoom);
+        render();
+      });
+    });
+    wrap.querySelector('[data-action="del"]').onclick = ()=>{
+      const room = state.rooms[state.activeRoom];
+      room.modules = room.modules.filter(m=>m.id!==mod.id);
+      saveModulesForRoom(state.activeRoom); render();
+    };
+    return wrap;
+  }
+
+  const head = document.createElement('div');
+  head.className = 'module-head';
+  head.innerHTML = `<h3 class="serif">${mod.name}</h3><span class="module-type">${mod.type}</span>`;
+  wrap.appendChild(head);
+
+  const gridWrap = document.createElement('div');
+  gridWrap.className = 'grid-wrap';
+  const grid = document.createElement('div');
+  grid.className = 'grid';
+  grid.style.gridTemplateColumns = `repeat(${mod.cols}, 34px)`;
+  for(let r=0;r<mod.rows;r++){
+    for(let c=0;c<mod.cols;c++){
+      const key = `${mod.id}:${r}:${c}`;
+      const bottle = positionMap[key];
+      const cell = document.createElement('button');
+      cell.className = 'cell ' + (bottle ? bottle.statut : 'empty');
+      if(bottle){
+        const neck = document.createElement('span');
+        neck.className = 'neck';
+        cell.appendChild(neck);
+      }
+      cell.onclick = ()=> openSheet(mod, r, c, key);
+      grid.appendChild(cell);
+    }
+  }
+  gridWrap.appendChild(grid);
+  wrap.appendChild(gridWrap);
+  return wrap;
+}
+
+function addModule(){
+  const room = state.rooms[state.activeRoom];
+  const id = 'm' + Date.now();
+  room.modules.push({id, name:'Nouveau module', type:'Casier', rows:4, cols:4});
+  saveModulesForRoom(state.activeRoom); render();
+}
+
+// ---------- FICHE BOUTEILLE (sheet) ----------
+const overlay = document.getElementById('overlay');
+const sheetEl = document.getElementById('sheet');
+
+function closeSheet(){ overlay.classList.remove('show'); sheetEl.innerHTML=''; }
+overlay.addEventListener('click', e=>{ if(e.target===overlay) closeSheet(); });
+
+function openSheet(mod, r, c, key){
+  const existing = getPositionMap()[key];
+  sheetEl.innerHTML = existing ? ficheView(existing, key) : ficheForm(mod, key);
+  overlay.classList.add('show');
+  updateDomaineDatalist();
+  wireSheet(mod, key, existing);
+}
+
+function updateDomaineDatalist(){
+  const dl = document.getElementById('dl_domaine');
+  const set = new Set(Object.values(state.bottles).map(b=>b.domaine).filter(Boolean));
+  dl.innerHTML = Array.from(set).sort().map(d=>`<option value="${d.replace(/"/g,'&quot;')}">`).join('');
+}
+
+function ficheForm(mod, key){
+  return `
+    <h2 class="serif">Nouvelle bouteille</h2>
+    <div class="sub">${mod.name}</div>
+    <button type="button" class="btn gold" id="scanBtn" style="width:100%;margin-bottom:6px;">Scanner l'étiquette</button>
+    <input type="file" id="scanInput" accept="image/*" capture="environment" style="display:none;">
+    <div id="scanStatus" style="font-size:12px;color:var(--text-dim);min-height:16px;margin-bottom:14px;"></div>
+    <div class="field">
+      <label>Domaine / Producteur</label>
+      <input id="f_domaine" list="dl_domaine">
+      <button type="button" class="btn ghost" id="searchDomaineBtn" style="width:100%;margin-top:6px;">Rechercher un producteur</button>
+      <div id="domaineResults" style="margin-top:6px;display:flex;flex-direction:column;gap:6px;"></div>
+    </div>
+    <div class="row2">
+      <div class="field"><label>Appellation</label><input id="f_appellation" list="dl_appellation"></div>
+      <div class="field"><label>Millésime</label><input id="f_millesime" type="number"></div>
+    </div>
+    <div class="row2">
+      <div class="field"><label>Couleur</label>
+        <select id="f_couleur">
+          <option>Rouge</option><option>Blanc</option><option>Rosé</option>
+          <option>Effervescent</option><option>Liquoreux</option>
+        </select>
+      </div>
+      <div class="field"><label>Format</label>
+        <select id="f_format">
+          <option>75cl</option><option>37.5cl</option><option>Magnum</option><option>Autre</option>
+        </select>
+      </div>
+    </div>
+    <div class="field"><label>Cépages</label><input id="f_cepages" list="dl_cepages" placeholder="Séparés par une virgule"></div>
+    <div class="row2">
+      <div class="field"><label>Apogée début</label><input id="f_apo_deb" type="number"></div>
+      <div class="field"><label>Apogée fin</label><input id="f_apo_fin" type="number"></div>
+    </div>
+    <button type="button" class="btn ghost" id="apogeeBtn" style="width:100%;margin-bottom:4px;">Estimer la fenêtre de dégustation</button>
+    <div id="apogeeStatus" style="font-size:11px;color:var(--text-dim);margin-bottom:14px;min-height:14px;"></div>
+    <div class="field"><label>Statut</label>
+      <div class="status-pick">
+        <button type="button" data-s="garde" class="sel garde">En garde</button>
+        <button type="button" data-s="apogee">Apogée</button>
+        <button type="button" data-s="aboire">À boire</button>
+      </div>
+    </div>
+    <div class="row2">
+      <div class="field"><label>Prix d'achat (€)</label><input id="f_prix" type="number"></div>
+      <div class="field"><label>Quantité</label><input id="f_qte" type="number" value="1" min="1"></div>
+    </div>
+    <div class="sheet-actions">
+      <button class="btn ghost" id="cancelBtn">Annuler</button>
+      <button class="btn gold" id="saveBtn">Ranger la bouteille</button>
+    </div>
+  `;
+}
+
+function ficheView(b, key){
+  const statusLabel = {garde:'En garde', apogee:'À l\u2019apogée', aboire:'À boire en priorité'}[b.statut];
+  return `
+    <h2 class="serif">${b.domaine || 'Sans nom'}</h2>
+    <div class="sub">${b.appellation || ''} ${b.millesime || ''}</div>
+    <div class="field"><label>Statut</label>
+      <div class="status-pick">
+        <button type="button" data-s="garde" class="${b.statut==='garde'?'sel garde':''}">En garde</button>
+        <button type="button" data-s="apogee" class="${b.statut==='apogee'?'sel apogee':''}">Apogée</button>
+        <button type="button" data-s="aboire" class="${b.statut==='aboire'?'sel aboire':''}">À boire</button>
+      </div>
+    </div>
+    <div class="row2">
+      <div class="field"><label>Couleur</label><input value="${b.couleur||''}" disabled></div>
+      <div class="field"><label>Format</label><input value="${b.format||''}" disabled></div>
+    </div>
+    <div class="field"><label>Cépages</label><input value="${b.cepages||''}" disabled></div>
+    <div class="row2">
+      <div class="field"><label>Apogée</label><input value="${(b.apo_deb||'?')+' – '+(b.apo_fin||'?')}" disabled></div>
+      <div class="field"><label>Prix d'achat</label><input value="${b.prix?b.prix+' €':''}" disabled></div>
+    </div>
+    <div class="sheet-actions">
+      <button class="btn ghost" id="cancelBtn">Fermer</button>
+      <button class="btn" id="outBtn">Sortir / bue</button>
+    </div>
+  `;
+}
+
+function wireSheet(mod, key, existing){
+  const cancel = document.getElementById('cancelBtn');
+  if(cancel) cancel.onclick = closeSheet;
+
+  const scanBtn = document.getElementById('scanBtn');
+  const scanInput = document.getElementById('scanInput');
+  if(scanBtn && scanInput){
+    scanBtn.onclick = ()=> scanInput.click();
+    scanInput.onchange = (e)=>{
+      const file = e.target.files[0];
+      if(file) scanEtiquette(file);
+    };
+  }
+
+  const apogeeBtn = document.getElementById('apogeeBtn');
+  if(apogeeBtn) apogeeBtn.onclick = estimateApogee;
+
+  const searchDomaineBtn = document.getElementById('searchDomaineBtn');
+  if(searchDomaineBtn) searchDomaineBtn.onclick = searchDomaine;
+
+  const statusBtns = sheetEl.querySelectorAll('.status-pick button');
+  let currentStatus = existing ? existing.statut : 'garde';
+  statusBtns.forEach(btn=>{
+    btn.onclick = ()=>{
+      currentStatus = btn.dataset.s;
+      statusBtns.forEach(b=>b.classList.remove('sel','garde','apogee','aboire'));
+      btn.classList.add('sel', currentStatus);
+    };
+  });
+
+  const save = document.getElementById('saveBtn');
+  if(save){
+    save.onclick = ()=>{
+      const bottle = {
+        id: existing ? existing.id : generateId(),
+        domaine: document.getElementById('f_domaine').value,
+        appellation: document.getElementById('f_appellation').value,
+        millesime: document.getElementById('f_millesime').value,
+        couleur: document.getElementById('f_couleur').value,
+        format: document.getElementById('f_format').value,
+        cepages: document.getElementById('f_cepages').value,
+        apo_deb: document.getElementById('f_apo_deb').value,
+        apo_fin: document.getElementById('f_apo_fin').value,
+        prix: document.getElementById('f_prix').value,
+        qte: document.getElementById('f_qte').value,
+        statut: currentStatus,
+        module: mod.id,
+        position: key,
+        date_ajout: existing ? (existing.date_ajout || new Date().toISOString()) : new Date().toISOString(),
+      };
+      state.bottles[bottle.id] = bottle;
+      saveBottle(bottle);
+      closeSheet();
+      render();
+    };
+  }
+
+  const outBtn = document.getElementById('outBtn');
+  if(outBtn){
+    outBtn.onclick = ()=>{
+      existing.statut = 'bue';
+      existing.position = '';
+      existing.date_sortie = new Date().toISOString();
+      saveBottle(existing);
+      closeSheet();
+      render();
+    };
+  }
+}
+
+// ---------- RECHERCHE PRODUCTEUR (web, à la demande) ----------
+async function searchDomaine(){
+  const input = document.getElementById('f_domaine');
+  const resultsEl = document.getElementById('domaineResults');
+  const btn = document.getElementById('searchDomaineBtn');
+  const q = input.value.trim();
+
+  if(q.length < 3){
+    resultsEl.innerHTML = '<div style="font-size:11px;color:var(--text-dim);">Tape au moins 3 lettres avant de chercher.</div>';
+    return;
+  }
+
+  resultsEl.innerHTML = '<div style="font-size:11px;color:var(--text-dim);">Recherche…</div>';
+  btn.disabled = true;
+  try{
+    const res = await fetch(GAS_URL, {
+      method:'POST',
+      body: JSON.stringify({ action:'rechercher_domaine', query: q })
+    });
+    if(!res.ok) throw new Error('Réponse serveur ' + res.status);
+    const data = await res.json();
+    if(data.error) throw new Error(data.error);
+
+    const candidats = data.candidats || [];
+    if(candidats.length === 0){
+      resultsEl.innerHTML = '<div style="font-size:11px;color:var(--text-dim);">Aucune correspondance trouvée — garde ta saisie ou ajuste-la.</div>';
+      return;
+    }
+    resultsEl.innerHTML = '';
+    candidats.forEach(cand=>{
+      const b = document.createElement('button');
+      b.type = 'button';
+      b.className = 'btn ghost';
+      b.style.textAlign = 'left';
+      b.style.width = '100%';
+      b.innerHTML = `<strong>${cand.domaine}</strong>` + (cand.appellation ? ` — ${cand.appellation}` : '') + (cand.region ? ` (${cand.region})` : '');
+      b.onclick = ()=>{
+        document.getElementById('f_domaine').value = cand.domaine;
+        if(cand.appellation && document.getElementById('f_appellation')){
+          document.getElementById('f_appellation').value = cand.appellation;
+        }
+        resultsEl.innerHTML = '';
+      };
+      resultsEl.appendChild(b);
+    });
+  }catch(err){
+    resultsEl.innerHTML = '<div style="font-size:11px;color:var(--text-dim);">Recherche impossible (' + err.message + ').</div>';
+  }finally{
+    btn.disabled = false;
+  }
+}
+
+// ---------- SCAN OCR ÉTIQUETTE ----------
+// Remplace par l'URL de déploiement de ton Web App Apps Script (voir cave-apps-script.gs).
+const GAS_URL = 'https://script.google.com/macros/s/AKfycbxVS6Ui9PP4Ju4EZG1a7G5v_amxE1fOLtkqh3zhq4Wfq5-7jcqR-Ig9__W6TIn5dtXw/exec';
+
+function fileToBase64(file){
+  return new Promise((resolve, reject)=>{
+    const reader = new FileReader();
+    reader.onload = ()=> resolve(reader.result.split(',')[1]);
+    reader.onerror = reject;
+    reader.readAsDataURL(file);
+  });
+}
+
+async function scanEtiquette(file){
+  const statusEl = document.getElementById('scanStatus');
+  const scanBtn = document.getElementById('scanBtn');
+  statusEl.textContent = 'Analyse de l\u2019étiquette…';
+  scanBtn.disabled = true;
+  try{
+    const base64 = await fileToBase64(file);
+    const res = await fetch(GAS_URL, {
+      method:'POST',
+      body: JSON.stringify({ action:'ocr_etiquette', image: base64, mime: file.type || 'image/jpeg' })
+    });
+    if(!res.ok) throw new Error('Réponse serveur ' + res.status);
+    const data = await res.json();
+    fillFromOCR(data);
+    statusEl.textContent = 'Champs complétés — vérifie avant d\u2019enregistrer.';
+  }catch(err){
+    statusEl.textContent = 'Scan impossible (' + err.message + '). Saisie manuelle possible.';
+  }finally{
+    scanBtn.disabled = false;
+  }
+}
+
+function fillFromOCR(data){
+  const map = {
+    domaine:'f_domaine', appellation:'f_appellation', millesime:'f_millesime',
+    couleur:'f_couleur', format:'f_format', cepages:'f_cepages'
+  };
+  Object.entries(map).forEach(([key, id])=>{
+    const el = document.getElementById(id);
+    if(el && data[key] !== undefined && data[key] !== null && data[key] !== ''){
+      el.value = data[key];
+    }
+  });
+}
+
+// ---------- ESTIMATION APOGÉE (recherche web) ----------
+async function estimateApogee(){
+  const statusEl = document.getElementById('apogeeStatus');
+  const btn = document.getElementById('apogeeBtn');
+  const domaine = document.getElementById('f_domaine').value;
+  const appellation = document.getElementById('f_appellation').value;
+  const millesime = document.getElementById('f_millesime').value;
+  const couleur = document.getElementById('f_couleur').value;
+  const cepages = document.getElementById('f_cepages').value;
+
+  if(!domaine && !appellation){
+    statusEl.textContent = 'Renseigne au moins le domaine ou l\u2019appellation avant de lancer la recherche.';
+    return;
+  }
+
+  statusEl.textContent = 'Recherche sur les guides en cours…';
+  btn.disabled = true;
+  try{
+    const res = await fetch(GAS_URL, {
+      method:'POST',
+      body: JSON.stringify({ action:'estimer_apogee', domaine, appellation, millesime, couleur, cepages })
+    });
+    if(!res.ok) throw new Error('Réponse serveur ' + res.status);
+    const data = await res.json();
+    if(data.error) throw new Error(data.error);
+
+    if(data.apo_deb) document.getElementById('f_apo_deb').value = data.apo_deb;
+    if(data.apo_fin) document.getElementById('f_apo_fin').value = data.apo_fin;
+
+    if(data.apo_deb || data.apo_fin){
+      statusEl.textContent = 'Source : ' + (data.source_guide || 'estimation') + (data.note ? ' — ' + data.note : '');
+    } else {
+      statusEl.textContent = data.note || 'Aucune donnée fiable trouvée — saisie manuelle recommandée.';
+    }
+  }catch(err){
+    statusEl.textContent = 'Recherche impossible (' + err.message + ').';
+  }finally{
+    btn.disabled = false;
+  }
+}
+
+// ---------- NAV ----------
+document.querySelectorAll('.tab').forEach(tab=>{
+  tab.onclick = ()=>{
+    document.querySelectorAll('.tab').forEach(t=>t.classList.remove('active'));
+    tab.classList.add('active');
+    state.activeRoom = tab.dataset.room;
+    render();
+  };
+});
+document.getElementById('cfgToggle').onclick = (e)=>{
+  state.configMode = !state.configMode;
+  e.target.textContent = state.configMode ? 'Terminer' : 'Configurer';
+  e.target.classList.toggle('gold', state.configMode);
+  render();
+};
+
+loadState();
+</script>
+</body>
+</html>
