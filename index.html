@@ -207,6 +207,37 @@
     margin:16px 16px 0;
     line-height:1.5;
   }
+
+  /* scan NFC plein écran */
+  .nfc-screen{
+    position:fixed;inset:0;background:var(--bg);
+    z-index:100;display:none;
+    flex-direction:column;align-items:center;justify-content:center;
+    text-align:center;padding:32px;
+  }
+  .nfc-screen.show{display:flex;}
+  .nfc-pulse{
+    width:96px;height:96px;border-radius:50%;
+    border:3px solid var(--gold);
+    display:flex;align-items:center;justify-content:center;
+    margin-bottom:24px;
+    animation:nfc-pulse 1.6s ease-in-out infinite;
+  }
+  @keyframes nfc-pulse{
+    0%,100%{box-shadow:0 0 0 0 rgba(201,162,39,0.35);}
+    50%{box-shadow:0 0 0 18px rgba(201,162,39,0);}
+  }
+  .nfc-status{font-size:15px;color:var(--text-dim);max-width:280px;}
+  .nfc-card{
+    background:var(--panel);border:1px solid var(--line);border-radius:8px;
+    padding:20px;width:100%;max-width:320px;margin-top:12px;
+  }
+  .nfc-card h2{margin:0 0 4px;font-size:20px;}
+  .nfc-card .sub{color:var(--text-dim);font-size:12px;margin-bottom:16px;}
+  .nfc-close{
+    position:absolute;top:20px;right:20px;
+    background:none;border:none;color:var(--text-dim);font-size:22px;
+  }
 </style>
 </head>
 <body>
@@ -220,7 +251,10 @@
   </div>
   <div class="toolbar">
     <span id="roomHint" style="font-size:12px;color:var(--text-dim);"></span>
-    <button class="btn ghost" id="cfgToggle">Configurer</button>
+    <div style="display:flex;gap:6px;">
+      <button class="btn gold" id="nfcScanBtn">Sortie NFC</button>
+      <button class="btn ghost" id="cfgToggle">Configurer</button>
+    </div>
   </div>
 </header>
 
@@ -245,6 +279,14 @@
 
 <div class="overlay" id="overlay">
   <div class="sheet" id="sheet"></div>
+</div>
+
+<div class="nfc-screen" id="nfcScreen">
+  <button class="nfc-close" id="nfcClose">✕</button>
+  <div id="nfcContent">
+    <div class="nfc-pulse">🍷</div>
+    <div class="nfc-status" id="nfcStatus">Approche une bouteille du téléphone…</div>
+  </div>
 </div>
 
 
@@ -402,6 +444,20 @@ function render(){
   const room = state.rooms[state.activeRoom];
   roomHint.textContent = state.configMode ? 'Mode configuration' : room.label;
   main.innerHTML = '';
+
+  if(state.moveMode){
+    const banner = document.createElement('div');
+    banner.style.cssText = 'background:var(--gold);color:#1c1710;border-radius:4px;padding:10px 12px;margin-bottom:14px;font-size:13px;display:flex;justify-content:space-between;align-items:center;gap:10px;';
+    banner.innerHTML = `<span>Déplacement de <strong>${state.moveMode.label}</strong> — tape la case de destination</span>`;
+    const cancelBtn = document.createElement('button');
+    cancelBtn.textContent = 'Annuler';
+    cancelBtn.className = 'btn ghost';
+    cancelBtn.style.cssText = 'background:none;border-color:#1c1710;color:#1c1710;flex-shrink:0;';
+    cancelBtn.onclick = ()=>{ state.moveMode = null; render(); };
+    banner.appendChild(cancelBtn);
+    main.appendChild(banner);
+  }
+
   const positionMap = getPositionMap();
   room.modules.forEach(mod => main.appendChild(renderModule(mod, positionMap)));
   if(state.configMode){
@@ -482,7 +538,13 @@ function renderModule(mod, positionMap){
         neck.style.background = couleurHex(bottle.couleur);
         cell.appendChild(neck);
       }
-      cell.onclick = ()=> openSheet(mod, r, c, key);
+      cell.onclick = ()=>{
+        if(state.moveMode){
+          moveBottleTo(mod, r, c, key);
+        } else {
+          openSheet(mod, r, c, key);
+        }
+      };
       grid.appendChild(cell);
     }
   }
@@ -496,6 +558,27 @@ function addModule(){
   const id = 'm' + Date.now();
   room.modules.push({id, name:'Nouveau module', type:'Casier', rows:4, cols:4});
   saveModulesForRoom(state.activeRoom); render();
+}
+
+function startMoveBottle(bottle, fromKey){
+  state.moveMode = { bottleId: bottle.id, fromKey, label: bottle.domaine || 'bouteille sans nom' };
+  closeSheet();
+  render();
+}
+
+function moveBottleTo(mod, r, c, key){
+  const move = state.moveMode;
+  if(key === move.fromKey){ state.moveMode = null; render(); return; } // case de départ = annulation implicite
+  if(getPositionMap()[key]){
+    alert('Cette case est déjà occupée — choisis une case vide.');
+    return;
+  }
+  const bottle = state.bottles[move.bottleId];
+  bottle.position = key;
+  bottle.module = mod.id;
+  saveBottle(bottle);
+  state.moveMode = null;
+  render();
 }
 
 // ---------- FICHE BOUTEILLE (sheet) ----------
@@ -518,6 +601,8 @@ function ficheForm(mod, key, prefill){
   return `
     <h2 class="serif">${prefill ? 'Modifier la bouteille' : 'Nouvelle bouteille'}</h2>
     <div class="sub">${mod.name}</div>
+    <button type="button" class="btn ghost" id="nfcAssocBtn" style="width:100%;margin-bottom:8px;">Associer une puce NFC à cet emplacement</button>
+    <div id="nfcAssocStatus" style="font-size:11px;color:var(--text-dim);margin-bottom:12px;min-height:14px;"></div>
     <button type="button" class="btn gold" id="scanBtn" style="width:100%;margin-bottom:6px;">Scanner l'étiquette</button>
     <input type="file" id="scanInput" accept="image/*" capture="environment" style="display:none;">
     <div id="scanStatus" style="font-size:12px;color:var(--text-dim);min-height:16px;margin-bottom:14px;"></div>
@@ -580,6 +665,8 @@ function ficheView(b, key){
   return `
     <h2 class="serif">${b.domaine || 'Sans nom'}</h2>
     <div class="sub">${b.appellation || ''} ${b.millesime || ''}</div>
+    <button type="button" class="btn ghost" id="nfcAssocBtn" style="width:100%;margin-bottom:8px;">Associer une puce NFC à cet emplacement</button>
+    <div id="nfcAssocStatus" style="font-size:11px;color:var(--text-dim);margin-bottom:12px;min-height:14px;"></div>
     <div class="field"><label>Statut</label>
       <div class="status-pick">
         <button type="button" data-s="garde" class="${b.statut==='garde'?'sel garde':''}">En garde</button>
@@ -601,6 +688,7 @@ function ficheView(b, key){
       <button class="btn ghost" id="editBtn">Modifier</button>
       <button class="btn" id="outBtn">Sortir / bue</button>
     </div>
+    <button type="button" class="btn ghost" id="moveBtn" style="width:100%;margin-top:10px;">Déplacer cette bouteille</button>
   `;
 }
 
@@ -614,6 +702,16 @@ function wireSheet(mod, key, existing){
       sheetEl.innerHTML = ficheForm(mod, key, existing);
       wireSheet(mod, key, existing);
     };
+  }
+
+  const nfcAssocBtn = document.getElementById('nfcAssocBtn');
+  if(nfcAssocBtn){
+    nfcAssocBtn.onclick = ()=> associatePositionTag(key, 'nfcAssocStatus');
+  }
+
+  const moveBtn = document.getElementById('moveBtn');
+  if(moveBtn && existing){
+    moveBtn.onclick = ()=> startMoveBottle(existing, key);
   }
 
   const domaineInput = document.getElementById('f_domaine');
@@ -745,6 +843,165 @@ async function searchDomaine(){
     resultsEl.innerHTML = '<div style="font-size:11px;color:var(--text-dim);">Recherche impossible (' + err.message + ').</div>';
   }finally{
     btn.disabled = false;
+  }
+}
+
+// ---------- SCAN NFC (sortie rapide, Web NFC — Android/Seeker uniquement) ----------
+const NFC_SUPPORTED = 'NDEFReader' in window;
+let nfcReader = null;
+
+const nfcScreen = document.getElementById('nfcScreen');
+const nfcContent = document.getElementById('nfcContent');
+
+document.getElementById('nfcScanBtn').onclick = openNfcScanner;
+document.getElementById('nfcClose').onclick = closeNfcScanner;
+
+function resetNfcReadyUI(){
+  nfcContent.innerHTML = `
+    <div class="nfc-pulse">🍷</div>
+    <div class="nfc-status" id="nfcStatus">Approche une bouteille du téléphone…</div>
+  `;
+}
+
+async function openNfcScanner(){
+  nfcScreen.classList.add('show');
+  if(!NFC_SUPPORTED){
+    nfcContent.innerHTML = `
+      <div class="nfc-status">Le scan NFC n'est disponible que sur un appareil Android compatible (le Seeker), pas sur cet iPhone/iPad. Utilise la grille pour sortir une bouteille ici.</div>
+    `;
+    return;
+  }
+  resetNfcReadyUI();
+  try{
+    nfcReader = new NDEFReader();
+    await nfcReader.scan();
+    nfcReader.onreading = handleNfcReading;
+    nfcReader.onreadingerror = ()=>{
+      document.getElementById('nfcStatus').textContent = 'Lecture impossible, réessaie.';
+    };
+  }catch(err){
+    nfcContent.innerHTML = `<div class="nfc-status">Scan NFC indisponible (${err.message}). Vérifie que le NFC est activé.</div>`;
+  }
+}
+
+function closeNfcScanner(){
+  nfcScreen.classList.remove('show');
+  nfcReader = null; // Web NFC n'a pas de stop() natif ; la fermeture de l'écran suffit à ignorer les lectures suivantes
+  nfcMovePending = null;
+}
+
+let nfcMovePending = null; // bouteille en attente de scan de la case de destination
+
+function handleNfcReading(event){
+  if(!nfcScreen.classList.contains('show')) return; // écran fermé entre-temps
+  let tagValue = '';
+  for(const record of event.message.records){
+    if(record.recordType === 'text'){
+      const decoder = new TextDecoder(record.encoding || 'utf-8');
+      tagValue = decoder.decode(record.data);
+      break;
+    }
+  }
+  const parts = tagValue.split(':');
+  if(parts.length !== 3){
+    nfcContent.innerHTML = `
+      <div class="nfc-pulse">🍷</div>
+      <div class="nfc-status">Puce non reconnue (pas un emplacement de cave).</div>
+    `;
+    setTimeout(resetNfcReadyUI, 1800);
+    return;
+  }
+  const [modId, r, c] = parts;
+  const found = findModuleById(modId);
+  if(!found){
+    nfcContent.innerHTML = `
+      <div class="nfc-pulse">🍷</div>
+      <div class="nfc-status">Puce non reconnue (module introuvable).</div>
+    `;
+    setTimeout(resetNfcReadyUI, 1800);
+    return;
+  }
+
+  // ---- déplacement en cours : cette lecture est la case de destination ----
+  if(nfcMovePending){
+    const bottle = nfcMovePending;
+    if(tagValue === bottle.position){
+      nfcContent.innerHTML = `<div class="nfc-pulse">🍷</div><div class="nfc-status">C'est la même case — scanne la vraie destination.</div>`;
+      return;
+    }
+    if(getPositionMap()[tagValue]){
+      nfcContent.innerHTML = `<div class="nfc-pulse">🍷</div><div class="nfc-status">Case déjà occupée — scanne une autre destination.</div>`;
+      return;
+    }
+    bottle.position = tagValue;
+    bottle.module = modId;
+    saveBottle(bottle);
+    nfcMovePending = null;
+    render();
+    nfcContent.innerHTML = `<div class="nfc-pulse">✓</div><div class="nfc-status">Déplacée vers ${found.mod.name}</div>`;
+    setTimeout(resetNfcReadyUI, 1500);
+    return;
+  }
+
+  const bottle = getPositionMap()[tagValue];
+  if(bottle){
+    nfcContent.innerHTML = `
+      <div class="nfc-card">
+        <h2 class="serif">${bottle.domaine || 'Sans nom'}</h2>
+        <div class="sub">${bottle.appellation || ''} ${bottle.millesime || ''} — ${found.mod.name}</div>
+        <button class="btn gold" id="nfcOutBtn" style="width:100%;margin-bottom:8px;">Sortir cette bouteille</button>
+        <button class="btn ghost" id="nfcMoveBtn" style="width:100%;">Déplacer (scanner la destination)</button>
+      </div>
+    `;
+    document.getElementById('nfcOutBtn').onclick = ()=>{
+      bottle.statut = 'bue';
+      bottle.position = '';
+      bottle.date_sortie = new Date().toISOString();
+      saveBottle(bottle);
+      render();
+      nfcContent.innerHTML = `
+        <div class="nfc-pulse">✓</div>
+        <div class="nfc-status">Sortie enregistrée — ${bottle.domaine || ''}</div>
+      `;
+      setTimeout(resetNfcReadyUI, 1500);
+    };
+    document.getElementById('nfcMoveBtn').onclick = ()=>{
+      nfcMovePending = bottle;
+      nfcContent.innerHTML = `
+        <div class="nfc-pulse">🍷</div>
+        <div class="nfc-status">Scanne maintenant la case de destination…</div>
+      `;
+    };
+  } else {
+    // Emplacement vide : direction la fiche d'ajout pour cet emplacement précis
+    state.activeRoom = found.roomKey;
+    closeNfcScanner();
+    openSheet(found.mod, parseInt(r), parseInt(c), tagValue);
+  }
+}
+
+function findModuleById(modId){
+  for(const roomKey in state.rooms){
+    const mod = state.rooms[roomKey].modules.find(m => m.id === modId);
+    if(mod) return { mod, roomKey };
+  }
+  return null;
+}
+
+// ---------- ASSOCIATION D'UNE PUCE NFC À UN EMPLACEMENT ----------
+async function associatePositionTag(key, statusElId){
+  const statusEl = document.getElementById(statusElId);
+  if(!NFC_SUPPORTED){
+    if(statusEl) statusEl.textContent = 'Association NFC disponible uniquement depuis le Seeker (Android).';
+    return;
+  }
+  if(statusEl) statusEl.textContent = 'Approche la puce à coller sur l\u2019étagère…';
+  try{
+    const writer = new NDEFReader();
+    await writer.write({ records: [{ recordType: 'text', data: key }] });
+    if(statusEl) statusEl.textContent = 'Puce associée à cet emplacement ✓ — colle-la maintenant.';
+  }catch(err){
+    if(statusEl) statusEl.textContent = 'Écriture impossible (' + err.message + ').';
   }
 }
 
