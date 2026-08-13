@@ -704,6 +704,27 @@ function ficheView(b, key){
   `;
 }
 
+// ---------- COULEUR DÉDUITE DU CÉPAGE (automatique, sauf choix manuel) ----------
+const CEPAGE_COULEUR = {
+  'Cabernet Sauvignon':'Rouge','Cabernet Franc':'Rouge','Merlot':'Rouge',
+  'Pinot Noir':'Rouge','Syrah':'Rouge','Grenache':'Rouge','Mourvèdre':'Rouge',
+  'Carignan':'Rouge','Cinsault':'Rouge','Gamay':'Rouge','Malbec':'Rouge',
+  'Petit Verdot':'Rouge','Tannat':'Rouge','Négrette':'Rouge',
+  'Chardonnay':'Blanc','Sauvignon Blanc':'Blanc','Chenin Blanc':'Blanc',
+  'Riesling':'Blanc','Gewurztraminer':'Blanc','Pinot Gris':'Blanc',
+  'Pinot Blanc':'Blanc','Viognier':'Blanc','Marsanne':'Blanc','Roussanne':'Blanc',
+  'Sémillon':'Blanc','Ugni Blanc':'Blanc','Colombard':'Blanc',
+  'Vermentino (Rolle)':'Blanc','Clairette':'Blanc','Grenache Blanc':'Blanc',
+  'Picpoul':'Blanc','Aligoté':'Blanc','Sylvaner':'Blanc','Mauzac':'Blanc'
+};
+
+function inferCouleurFromCepages(cepagesStr){
+  if(!cepagesStr) return null;
+  const premier = cepagesStr.split(',')[0].trim().toLowerCase();
+  const key = Object.keys(CEPAGE_COULEUR).find(k => k.toLowerCase() === premier);
+  return key ? CEPAGE_COULEUR[key] : null;
+}
+
 function wireSheet(mod, key, existing){
   const cancel = document.getElementById('cancelBtn');
   if(cancel) cancel.onclick = closeSheet;
@@ -734,10 +755,22 @@ function wireSheet(mod, key, existing){
   }
   const appellationInput = document.getElementById('f_appellation');
   if(appellationInput) attachAutocomplete(appellationInput, ()=> APPELLATIONS);
+
+  const couleurSelect = document.getElementById('f_couleur');
+  let couleurTouchedManually = false;
+  if(couleurSelect){
+    couleurSelect.addEventListener('change', ()=>{ couleurTouchedManually = true; });
+  }
+
   const cepagesInput = document.getElementById('f_cepages');
   if(cepagesInput){
     cepagesInput.dataset.multi = '1';
     attachAutocomplete(cepagesInput, ()=> CEPAGES);
+    cepagesInput.addEventListener('input', ()=>{
+      if(couleurTouchedManually || !couleurSelect) return;
+      const deduite = inferCouleurFromCepages(cepagesInput.value);
+      if(deduite) couleurSelect.value = deduite;
+    });
   }
 
   const scanBtn = document.getElementById('scanBtn');
@@ -1092,6 +1125,12 @@ function fillFromOCR(data){
       el.value = data[key];
     }
   });
+  // Si l'OCR n'a pas trouvé la couleur mais a trouvé le cépage, on la déduit.
+  if((!data.couleur || data.couleur === '') && data.cepages){
+    const deduite = inferCouleurFromCepages(data.cepages);
+    const couleurEl = document.getElementById('f_couleur');
+    if(deduite && couleurEl) couleurEl.value = deduite;
+  }
 }
 
 // ---------- RÉFÉRENTIEL D'APOGÉE (estimation instantanée, sans réseau) ----------
