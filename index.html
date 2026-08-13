@@ -669,11 +669,12 @@ function ficheForm(mod, key, prefill){
     </div>
     <button type="button" class="btn ghost" id="apogeeBtn" style="width:100%;margin-bottom:4px;">Estimer la fenêtre de dégustation</button>
     <div id="apogeeStatus" style="font-size:11px;color:var(--text-dim);margin-bottom:14px;min-height:14px;"></div>
-    <div class="field"><label>Statut</label>
-      <div class="status-pick">
-        <button type="button" data-s="garde" class="${(!b.statut||b.statut==='garde')?'sel garde':''}">En garde</button>
-        <button type="button" data-s="apogee" class="${b.statut==='apogee'?'sel apogee':''}">Apogée</button>
-        <button type="button" data-s="aboire" class="${b.statut==='aboire'?'sel aboire':''}">À boire</button>
+    <div class="field" id="statutField">
+      <label id="statutLabel">Statut</label>
+      <div class="status-pick" id="statutPick">
+        <button type="button" data-s="garde" class="${computeStatut(b)==='garde'?'sel garde':''}">En garde</button>
+        <button type="button" data-s="apogee" class="${computeStatut(b)==='apogee'?'sel apogee':''}">Apogée</button>
+        <button type="button" data-s="aboire" class="${computeStatut(b)==='aboire'?'sel aboire':''}">À boire</button>
       </div>
     </div>
     <div class="row2">
@@ -806,7 +807,7 @@ function wireSheet(mod, key, existing){
   if(searchDomaineBtn) searchDomaineBtn.onclick = searchDomaine;
 
   const statusBtns = sheetEl.querySelectorAll('.status-pick button');
-  let currentStatus = existing ? existing.statut : 'garde';
+  let currentStatus = existing ? computeStatut(existing) : 'garde';
   statusBtns.forEach(btn=>{
     btn.onclick = ()=>{
       currentStatus = btn.dataset.s;
@@ -814,6 +815,38 @@ function wireSheet(mod, key, existing){
       btn.classList.add('sel', currentStatus);
     };
   });
+
+  // Formulaire (ajout/édition) : le statut se recalcule en direct dès que les
+  // deux dates d'apogée sont renseignées, et se verrouille (non cliquable)
+  // tant que c'est le cas — cohérent avec la fiche de consultation.
+  const apoDebInput = document.getElementById('f_apo_deb');
+  const apoFinInput = document.getElementById('f_apo_fin');
+  const statutPick = document.getElementById('statutPick');
+  const statutLabel = document.getElementById('statutLabel');
+  function refreshStatutAuto(){
+    if(!apoDebInput || !apoFinInput || !statutPick) return;
+    const auto = computeStatut({ apo_deb: apoDebInput.value, apo_fin: apoFinInput.value }) &&
+                 parseInt(apoDebInput.value) && parseInt(apoFinInput.value);
+    if(auto){
+      currentStatus = computeStatut({ apo_deb: apoDebInput.value, apo_fin: apoFinInput.value });
+      statusBtns.forEach(b=>{
+        b.classList.remove('sel','garde','apogee','aboire');
+        if(b.dataset.s === currentStatus) b.classList.add('sel', currentStatus);
+      });
+      statutPick.style.opacity = '0.55';
+      statutPick.style.pointerEvents = 'none';
+      if(statutLabel) statutLabel.textContent = 'Statut — calculé automatiquement selon la fenêtre d\u2019apogée';
+    } else {
+      statutPick.style.opacity = '1';
+      statutPick.style.pointerEvents = 'auto';
+      if(statutLabel) statutLabel.textContent = 'Statut';
+    }
+  }
+  if(apoDebInput && apoFinInput){
+    apoDebInput.addEventListener('input', refreshStatutAuto);
+    apoFinInput.addEventListener('input', refreshStatutAuto);
+    refreshStatutAuto(); // état initial, y compris quand les dates viennent d'un prefill
+  }
 
   const save = document.getElementById('saveBtn');
   if(save){
@@ -969,6 +1002,12 @@ function handleNfcReading(event){
       break;
     }
   }
+  resolvePositionKey(tagValue);
+}
+
+// Point d'entrée partagé : scan Web NFC (Seeker) OU déclenchement par URL
+// depuis un Raccourci iOS (?scan=moduleId:row:col) — même résultat des deux côtés.
+function resolvePositionKey(tagValue){
   const parts = tagValue.split(':');
   if(parts.length !== 3){
     nfcContent.innerHTML = `
@@ -1265,7 +1304,19 @@ document.getElementById('cfgToggle').onclick = (e)=>{
   render();
 };
 
-loadState();
+loadState().then(()=>{
+  // Déclenchement depuis un Raccourci iOS après scan NFC natif :
+  // l'URL est ouverte avec ?scan=moduleId:row:col
+  const params = new URLSearchParams(location.search);
+  const scanParam = params.get('scan');
+  if(scanParam){
+    nfcScreen.classList.add('show');
+    resetNfcReadyUI();
+    resolvePositionKey(decodeURIComponent(scanParam));
+    // Nettoie l'URL pour qu'un rechargement ne re-déclenche pas le même scan
+    history.replaceState({}, '', location.pathname);
+  }
+});
 </script>
 </body>
 </html>
