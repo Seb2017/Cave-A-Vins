@@ -112,7 +112,7 @@
     width:34px;height:34px;
     border-radius:3px;
     background:var(--empty);
-    border:1px solid var(--line);
+    border:2px solid var(--line);
     display:flex;align-items:center;justify-content:center;
     cursor:pointer;
     position:relative;
@@ -122,9 +122,9 @@
     width:16px;height:16px;
     border-radius:50%;
   }
-  .cell.garde .neck{background:var(--slate);}
-  .cell.apogee .neck{background:var(--gold);}
-  .cell.aboire .neck{background:var(--wine-bright);}
+  .cell.garde{border-color:var(--slate);}
+  .cell.apogee{border-color:var(--gold);}
+  .cell.aboire{border-color:var(--wine-bright);}
   .cell.empty:active{background:var(--panel-2);}
   .cell.empty::after{
     content:'+';
@@ -227,9 +227,18 @@
 <main id="main"></main>
 
 <div class="legend">
-  <span><i class="dot garde"></i> En garde</span>
-  <span><i class="dot apogee"></i> À l'apogée</span>
-  <span><i class="dot aboire"></i> À boire en priorité</span>
+  <span style="width:100%;color:var(--text-dim);font-weight:600;">Statut (contour de la case)</span>
+  <span><i class="dot garde" style="border-radius:0;width:10px;height:10px;background:none;border:2px solid var(--slate);"></i> En garde</span>
+  <span><i class="dot apogee" style="border-radius:0;width:10px;height:10px;background:none;border:2px solid var(--gold);"></i> À l'apogée</span>
+  <span><i class="dot aboire" style="border-radius:0;width:10px;height:10px;background:none;border:2px solid var(--wine-bright);"></i> À boire en priorité</span>
+</div>
+<div class="legend" style="margin-top:0;">
+  <span style="width:100%;color:var(--text-dim);font-weight:600;">Couleur du vin (pastille)</span>
+  <span><i class="dot" style="background:#7a2333;"></i> Rouge</span>
+  <span><i class="dot" style="background:#e3d9a8;"></i> Blanc</span>
+  <span><i class="dot" style="background:#e0a9b8;"></i> Rosé</span>
+  <span><i class="dot" style="background:#f0e6b8;"></i> Effervescent</span>
+  <span><i class="dot" style="background:#d9a441;"></i> Liquoreux</span>
 </div>
 
 <p class="note">Connecté au Google Sheet via le proxy Apps Script — les modifications (bouteilles, modules) sont enregistrées en direct.</p>
@@ -238,46 +247,79 @@
   <div class="sheet" id="sheet"></div>
 </div>
 
-<datalist id="dl_domaine"></datalist>
-<datalist id="dl_appellation">
-  <option value="Margaux"><option value="Pauillac"><option value="Saint-Julien">
-  <option value="Saint-Estèphe"><option value="Saint-Émilion"><option value="Pomerol">
-  <option value="Pessac-Léognan"><option value="Sauternes"><option value="Graves">
-  <option value="Gevrey-Chambertin"><option value="Chambolle-Musigny"><option value="Vosne-Romanée">
-  <option value="Nuits-Saint-Georges"><option value="Meursault"><option value="Puligny-Montrachet">
-  <option value="Chassagne-Montrachet"><option value="Volnay"><option value="Pommard">
-  <option value="Chablis"><option value="Mercurey"><option value="Pouilly-Fuissé">
-  <option value="Châteauneuf-du-Pape"><option value="Côte-Rôtie"><option value="Hermitage">
-  <option value="Crozes-Hermitage"><option value="Gigondas"><option value="Vacqueyras">
-  <option value="Cornas"><option value="Saint-Joseph"><option value="Condrieu">
-  <option value="Sancerre"><option value="Pouilly-Fumé"><option value="Vouvray">
-  <option value="Chinon"><option value="Bourgueil"><option value="Saumur-Champigny">
-  <option value="Menetou-Salon"><option value="Alsace Grand Cru"><option value="Riesling d'Alsace">
-  <option value="Champagne"><option value="Crémant"><option value="Bandol">
-  <option value="Côtes de Provence"><option value="Cassis"><option value="Minervois">
-  <option value="Corbières"><option value="Faugères"><option value="Saint-Chinian">
-  <option value="Fitou"><option value="Morgon"><option value="Fleurie">
-  <option value="Moulin-à-Vent"><option value="Brouilly"><option value="Cahors">
-  <option value="Madiran"><option value="Jurançon"><option value="Côtes du Rhône">
-  <option value="Rioja"><option value="Ribera del Duero"><option value="Chianti Classico">
-  <option value="Barolo"><option value="Barbaresco"><option value="Priorat">
-</datalist>
-<datalist id="dl_cepages">
-  <option value="Cabernet Sauvignon"><option value="Cabernet Franc"><option value="Merlot">
-  <option value="Pinot Noir"><option value="Syrah"><option value="Grenache">
-  <option value="Mourvèdre"><option value="Carignan"><option value="Cinsault">
-  <option value="Gamay"><option value="Malbec"><option value="Petit Verdot">
-  <option value="Tannat"><option value="Négrette"><option value="Chardonnay">
-  <option value="Sauvignon Blanc"><option value="Chenin Blanc"><option value="Riesling">
-  <option value="Gewurztraminer"><option value="Pinot Gris"><option value="Pinot Blanc">
-  <option value="Muscat"><option value="Viognier"><option value="Marsanne">
-  <option value="Roussanne"><option value="Sémillon"><option value="Ugni Blanc">
-  <option value="Colombard"><option value="Vermentino (Rolle)"><option value="Clairette">
-  <option value="Grenache Blanc"><option value="Picpoul"><option value="Aligoté">
-  <option value="Sylvaner"><option value="Mauzac">
-</datalist>
 
 <script>
+// ---------- DICTIONNAIRES STATIQUES (appellations, cépages) ----------
+const APPELLATIONS = [
+  'Margaux','Pauillac','Saint-Julien','Saint-Estèphe','Saint-Émilion','Pomerol',
+  'Pessac-Léognan','Sauternes','Graves','Gevrey-Chambertin','Chambolle-Musigny',
+  'Vosne-Romanée','Nuits-Saint-Georges','Meursault','Puligny-Montrachet',
+  'Chassagne-Montrachet','Volnay','Pommard','Chablis','Mercurey','Pouilly-Fuissé',
+  'Châteauneuf-du-Pape','Côte-Rôtie','Hermitage','Crozes-Hermitage','Gigondas',
+  'Vacqueyras','Cornas','Saint-Joseph','Condrieu','Sancerre','Pouilly-Fumé',
+  'Vouvray','Chinon','Bourgueil','Saumur-Champigny','Menetou-Salon',
+  'Alsace Grand Cru',"Riesling d'Alsace",'Champagne','Crémant','Bandol',
+  'Côtes de Provence','Cassis','Minervois','Corbières','Faugères','Saint-Chinian',
+  'Fitou','Morgon','Fleurie','Moulin-à-Vent','Brouilly','Cahors','Madiran',
+  'Jurançon','Côtes du Rhône','Rioja','Ribera del Duero','Chianti Classico',
+  'Barolo','Barbaresco','Priorat'
+];
+const CEPAGES = [
+  'Cabernet Sauvignon','Cabernet Franc','Merlot','Pinot Noir','Syrah','Grenache',
+  'Grenache Blanc','Mourvèdre','Carignan','Cinsault','Gamay','Malbec',
+  'Petit Verdot','Tannat','Négrette','Chardonnay','Sauvignon Blanc',
+  'Chenin Blanc','Riesling','Gewurztraminer','Pinot Gris','Pinot Blanc',
+  'Muscat','Viognier','Marsanne','Roussanne','Sémillon','Ugni Blanc',
+  'Colombard','Vermentino (Rolle)','Clairette','Picpoul','Aligoté',
+  'Sylvaner','Mauzac'
+];
+
+// ---------- AUTOCOMPLÉTION MAISON ----------
+// Remplace <datalist>, peu fiable sur iPadOS/Safari (suggestions qui
+// interceptent la saisie, mauvais choix sur les champs à plusieurs valeurs).
+function attachAutocomplete(input, getSuggestions){
+  const box = document.createElement('div');
+  box.style.cssText = 'position:relative;';
+  const list = document.createElement('div');
+  list.style.cssText = 'position:absolute;left:0;right:0;top:2px;background:var(--panel-2);border:1px solid var(--line);border-radius:4px;max-height:160px;overflow-y:auto;z-index:5;display:none;';
+  input.parentNode.insertBefore(box, input);
+  box.appendChild(input);
+  box.appendChild(list);
+
+  function currentToken(){
+    // permet la saisie multi-valeurs séparées par virgule (ex. cépages)
+    const parts = input.value.split(',');
+    return parts[parts.length - 1].trim();
+  }
+  function replaceToken(value){
+    const parts = input.value.split(',');
+    parts[parts.length - 1] = ' ' + value;
+    input.value = parts.map(p=>p.trim()).filter(Boolean).join(', ');
+  }
+  function render(){
+    const token = currentToken().toLowerCase();
+    if(token.length < 1){ list.style.display = 'none'; return; }
+    const matches = getSuggestions().filter(s => s.toLowerCase().includes(token)).slice(0, 8);
+    if(matches.length === 0){ list.style.display = 'none'; return; }
+    list.innerHTML = '';
+    matches.forEach(m=>{
+      const item = document.createElement('div');
+      item.textContent = m;
+      item.style.cssText = 'padding:9px 10px;font-size:13px;color:var(--text);border-bottom:1px solid var(--line);';
+      item.onmousedown = (e)=> e.preventDefault(); // évite le blur avant le clic
+      item.onclick = ()=>{
+        if(input.dataset.multi === '1') replaceToken(m); else input.value = m;
+        list.style.display = 'none';
+      };
+      list.appendChild(item);
+    });
+    list.style.display = 'block';
+  }
+  input.addEventListener('input', render);
+  input.addEventListener('focus', render);
+  input.addEventListener('blur', ()=> setTimeout(()=> list.style.display='none', 100));
+}
+
 // ---------- STATE ----------
 let state = {
   activeRoom: 'buanderie',
@@ -371,6 +413,17 @@ function render(){
   }
 }
 
+function couleurHex(c){
+  switch(c){
+    case 'Rouge': return '#7a2333';
+    case 'Blanc': return '#e3d9a8';
+    case 'Rosé': return '#e0a9b8';
+    case 'Effervescent': return '#f0e6b8';
+    case 'Liquoreux': return '#d9a441';
+    default: return '#8a8172';
+  }
+}
+
 function renderModule(mod, positionMap){
   const wrap = document.createElement('div');
   wrap.className = 'module';
@@ -426,6 +479,7 @@ function renderModule(mod, positionMap){
       if(bottle){
         const neck = document.createElement('span');
         neck.className = 'neck';
+        neck.style.background = couleurHex(bottle.couleur);
         cell.appendChild(neck);
       }
       cell.onclick = ()=> openSheet(mod, r, c, key);
@@ -455,63 +509,64 @@ function openSheet(mod, r, c, key){
   const existing = getPositionMap()[key];
   sheetEl.innerHTML = existing ? ficheView(existing, key) : ficheForm(mod, key);
   overlay.classList.add('show');
-  updateDomaineDatalist();
   wireSheet(mod, key, existing);
 }
 
-function updateDomaineDatalist(){
-  const dl = document.getElementById('dl_domaine');
-  const set = new Set(Object.values(state.bottles).map(b=>b.domaine).filter(Boolean));
-  dl.innerHTML = Array.from(set).sort().map(d=>`<option value="${d.replace(/"/g,'&quot;')}">`).join('');
-}
-
-function ficheForm(mod, key){
+function ficheForm(mod, key, prefill){
+  const b = prefill || {};
+  const esc = (v)=> (v===undefined||v===null) ? '' : String(v).replace(/"/g,'&quot;');
   return `
-    <h2 class="serif">Nouvelle bouteille</h2>
+    <h2 class="serif">${prefill ? 'Modifier la bouteille' : 'Nouvelle bouteille'}</h2>
     <div class="sub">${mod.name}</div>
     <button type="button" class="btn gold" id="scanBtn" style="width:100%;margin-bottom:6px;">Scanner l'étiquette</button>
     <input type="file" id="scanInput" accept="image/*" capture="environment" style="display:none;">
     <div id="scanStatus" style="font-size:12px;color:var(--text-dim);min-height:16px;margin-bottom:14px;"></div>
     <div class="field">
       <label>Domaine / Producteur</label>
-      <input id="f_domaine" list="dl_domaine">
+      <input id="f_domaine" value="${esc(b.domaine)}">
       <button type="button" class="btn ghost" id="searchDomaineBtn" style="width:100%;margin-top:6px;">Rechercher un producteur</button>
       <div id="domaineResults" style="margin-top:6px;display:flex;flex-direction:column;gap:6px;"></div>
     </div>
     <div class="row2">
-      <div class="field"><label>Appellation</label><input id="f_appellation" list="dl_appellation"></div>
-      <div class="field"><label>Millésime</label><input id="f_millesime" type="number"></div>
+      <div class="field"><label>Appellation</label><input id="f_appellation" value="${esc(b.appellation)}"></div>
+      <div class="field"><label>Millésime</label><input id="f_millesime" type="number" value="${esc(b.millesime)}"></div>
     </div>
     <div class="row2">
       <div class="field"><label>Couleur</label>
         <select id="f_couleur">
-          <option>Rouge</option><option>Blanc</option><option>Rosé</option>
-          <option>Effervescent</option><option>Liquoreux</option>
+          <option ${b.couleur==='Rouge'?'selected':''}>Rouge</option>
+          <option ${b.couleur==='Blanc'?'selected':''}>Blanc</option>
+          <option ${b.couleur==='Rosé'?'selected':''}>Rosé</option>
+          <option ${b.couleur==='Effervescent'?'selected':''}>Effervescent</option>
+          <option ${b.couleur==='Liquoreux'?'selected':''}>Liquoreux</option>
         </select>
       </div>
       <div class="field"><label>Format</label>
         <select id="f_format">
-          <option>75cl</option><option>37.5cl</option><option>Magnum</option><option>Autre</option>
+          <option ${b.format==='75cl'||!b.format?'selected':''}>75cl</option>
+          <option ${b.format==='37.5cl'?'selected':''}>37.5cl</option>
+          <option ${b.format==='Magnum'?'selected':''}>Magnum</option>
+          <option ${b.format==='Autre'?'selected':''}>Autre</option>
         </select>
       </div>
     </div>
-    <div class="field"><label>Cépages</label><input id="f_cepages" list="dl_cepages" placeholder="Séparés par une virgule"></div>
+    <div class="field"><label>Cépages</label><input id="f_cepages" value="${esc(b.cepages)}" placeholder="Séparés par une virgule"></div>
     <div class="row2">
-      <div class="field"><label>Apogée début</label><input id="f_apo_deb" type="number"></div>
-      <div class="field"><label>Apogée fin</label><input id="f_apo_fin" type="number"></div>
+      <div class="field"><label>Apogée début</label><input id="f_apo_deb" type="number" value="${esc(b.apo_deb)}"></div>
+      <div class="field"><label>Apogée fin</label><input id="f_apo_fin" type="number" value="${esc(b.apo_fin)}"></div>
     </div>
     <button type="button" class="btn ghost" id="apogeeBtn" style="width:100%;margin-bottom:4px;">Estimer la fenêtre de dégustation</button>
     <div id="apogeeStatus" style="font-size:11px;color:var(--text-dim);margin-bottom:14px;min-height:14px;"></div>
     <div class="field"><label>Statut</label>
       <div class="status-pick">
-        <button type="button" data-s="garde" class="sel garde">En garde</button>
-        <button type="button" data-s="apogee">Apogée</button>
-        <button type="button" data-s="aboire">À boire</button>
+        <button type="button" data-s="garde" class="${(!b.statut||b.statut==='garde')?'sel garde':''}">En garde</button>
+        <button type="button" data-s="apogee" class="${b.statut==='apogee'?'sel apogee':''}">Apogée</button>
+        <button type="button" data-s="aboire" class="${b.statut==='aboire'?'sel aboire':''}">À boire</button>
       </div>
     </div>
     <div class="row2">
-      <div class="field"><label>Prix d'achat (€)</label><input id="f_prix" type="number"></div>
-      <div class="field"><label>Quantité</label><input id="f_qte" type="number" value="1" min="1"></div>
+      <div class="field"><label>Prix d'achat (€)</label><input id="f_prix" type="number" value="${esc(b.prix)}"></div>
+      <div class="field"><label>Quantité</label><input id="f_qte" type="number" value="${b.qte||1}" min="1"></div>
     </div>
     <div class="sheet-actions">
       <button class="btn ghost" id="cancelBtn">Annuler</button>
@@ -543,6 +598,7 @@ function ficheView(b, key){
     </div>
     <div class="sheet-actions">
       <button class="btn ghost" id="cancelBtn">Fermer</button>
+      <button class="btn ghost" id="editBtn">Modifier</button>
       <button class="btn" id="outBtn">Sortir / bue</button>
     </div>
   `;
@@ -551,6 +607,28 @@ function ficheView(b, key){
 function wireSheet(mod, key, existing){
   const cancel = document.getElementById('cancelBtn');
   if(cancel) cancel.onclick = closeSheet;
+
+  const editBtn = document.getElementById('editBtn');
+  if(editBtn){
+    editBtn.onclick = ()=>{
+      sheetEl.innerHTML = ficheForm(mod, key, existing);
+      wireSheet(mod, key, existing);
+    };
+  }
+
+  const domaineInput = document.getElementById('f_domaine');
+  if(domaineInput){
+    attachAutocomplete(domaineInput, ()=>{
+      return Array.from(new Set(Object.values(state.bottles).map(b=>b.domaine).filter(Boolean))).sort();
+    });
+  }
+  const appellationInput = document.getElementById('f_appellation');
+  if(appellationInput) attachAutocomplete(appellationInput, ()=> APPELLATIONS);
+  const cepagesInput = document.getElementById('f_cepages');
+  if(cepagesInput){
+    cepagesInput.dataset.multi = '1';
+    attachAutocomplete(cepagesInput, ()=> CEPAGES);
+  }
 
   const scanBtn = document.getElementById('scanBtn');
   const scanInput = document.getElementById('scanInput');
