@@ -409,8 +409,20 @@ async function loadState(){
     if(!res.ok) throw new Error('Réponse serveur ' + res.status);
     const data = await res.json();
     if(data.error) throw new Error(data.error);
-    if(data.rooms) state.rooms = data.rooms;
     if(data.bottles) state.bottles = data.bottles;
+
+    // Merge par pièce : on ne remplace que les pièces réellement présentes
+    // dans le Sheet. Toute pièce absente garde ses modules par défaut côté
+    // client — et on la sème immédiatement dans le Sheet pour que ce soit
+    // cohérent sur tous les appareils au prochain chargement.
+    const returned = data.rooms || {};
+    Object.keys(state.rooms).forEach(roomKey=>{
+      if(returned[roomKey] && returned[roomKey].modules && returned[roomKey].modules.length > 0){
+        state.rooms[roomKey].modules = returned[roomKey].modules;
+      } else {
+        saveModulesForRoom(roomKey); // sème les modules par défaut
+      }
+    });
   }catch(err){
     main.innerHTML = '<p style="color:var(--wine-bright);font-size:13px;padding:20px 0;">Connexion au Sheet impossible (' + err.message + '). Vérifie GAS_URL. Affichage hors-ligne.</p>';
   }
