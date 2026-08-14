@@ -1490,7 +1490,7 @@ function renderPairingSuggestions(suggestions){
   }).join('');
 }
 
-
+loadState().then(()=>{
   // Déclenchement depuis un Raccourci iOS après scan NFC natif :
   // l'URL est ouverte avec ?scan=moduleId:row:col
   const params = new URLSearchParams(location.search);
