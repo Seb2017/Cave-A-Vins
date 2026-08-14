@@ -402,8 +402,37 @@ function getPositionMap(){
   return map;
 }
 
+// ---------- CACHE LOCAL (affichage instantané, sync en arrière-plan) ----------
+const CACHE_KEY = 'cave_state_cache_v1';
+
+function loadFromCache(){
+  try{
+    const raw = localStorage.getItem(CACHE_KEY);
+    if(!raw) return false;
+    const cached = JSON.parse(raw);
+    if(cached.rooms) state.rooms = cached.rooms;
+    if(cached.bottles) state.bottles = cached.bottles;
+    return true;
+  }catch(e){ return false; }
+}
+
+function saveToCache(){
+  try{
+    localStorage.setItem(CACHE_KEY, JSON.stringify({ rooms: state.rooms, bottles: state.bottles }));
+  }catch(e){ /* stockage plein ou indisponible : tant pis, pas bloquant */ }
+}
+
 async function loadState(){
-  main.innerHTML = '<p style="color:var(--text-dim);font-size:13px;padding:20px 0;">Chargement de la cave…</p>';
+  // 1) Affichage immédiat depuis le cache local, si on en a un — pas d'attente.
+  const hadCache = loadFromCache();
+  if(hadCache){
+    state.loaded = true;
+    render();
+  } else {
+    main.innerHTML = '<p style="color:var(--text-dim);font-size:13px;padding:20px 0;">Chargement de la cave…</p>';
+  }
+
+  // 2) Synchronisation avec le Sheet en arrière-plan, sans bloquer l'affichage.
   try{
     const res = await fetch(GAS_URL, { method:'POST', body: JSON.stringify({ action:'get_state' }) });
     if(!res.ok) throw new Error('Réponse serveur ' + res.status);
@@ -423,8 +452,13 @@ async function loadState(){
         saveModulesForRoom(roomKey); // sème les modules par défaut
       }
     });
+    saveToCache();
   }catch(err){
-    main.innerHTML = '<p style="color:var(--wine-bright);font-size:13px;padding:20px 0;">Connexion au Sheet impossible (' + err.message + '). Vérifie GAS_URL. Affichage hors-ligne.</p>';
+    if(!hadCache){
+      main.innerHTML = '<p style="color:var(--wine-bright);font-size:13px;padding:20px 0;">Connexion au Sheet impossible (' + err.message + '). Vérifie GAS_URL. Affichage hors-ligne.</p>';
+    }
+    // Si on avait déjà un cache affiché, on le laisse tel quel plutôt que
+    // d'effacer l'écran pour une erreur réseau ponctuelle.
   }
   state.loaded = true;
   render();
@@ -436,6 +470,7 @@ async function saveModulesForRoom(roomKey){
       method:'POST',
       body: JSON.stringify({ action:'save_modules', room: roomKey, modules: state.rooms[roomKey].modules })
     });
+    saveToCache();
   }catch(err){ console.error('save_modules', err); }
 }
 
@@ -445,6 +480,7 @@ async function saveBottle(bottle){
       method:'POST',
       body: JSON.stringify({ action:'save_bottle', bottle })
     });
+    saveToCache();
   }catch(err){ console.error('save_bottle', err); }
 }
 
