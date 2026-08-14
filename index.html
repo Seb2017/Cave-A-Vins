@@ -238,6 +238,22 @@
     position:absolute;top:20px;right:20px;
     background:none;border:none;color:var(--text-dim);font-size:22px;
   }
+
+  /* bouton flottant sommelier virtuel */
+  .pairing-fab{
+    position:fixed;right:18px;bottom:24px;z-index:40;
+    width:56px;height:56px;border-radius:50%;
+    background:var(--wine);color:#fff;border:1px solid var(--wine-bright);
+    font-size:24px;display:flex;align-items:center;justify-content:center;
+    box-shadow:0 4px 14px rgba(0,0,0,0.4);
+  }
+  .pairing-card{
+    background:var(--panel-2);border:1px solid var(--line);border-radius:6px;
+    padding:14px;margin-bottom:10px;
+  }
+  .pairing-card h3{margin:0 0 2px;font-size:16px;font-weight:500;}
+  .pairing-card .sub{color:var(--text-dim);font-size:12px;margin-bottom:6px;}
+  .pairing-card .raison{font-size:13px;line-height:1.5;}
 </style>
 </head>
 <body>
@@ -288,6 +304,8 @@
     <div class="nfc-status" id="nfcStatus">Approche une bouteille du téléphone…</div>
   </div>
 </div>
+
+<button class="pairing-fab" id="pairingFab" title="Qu'est-ce qu'on boit ce soir ?">🍽️</button>
 
 
 <script>
@@ -1186,13 +1204,15 @@ const GAS_URL = 'https://script.google.com/macros/s/AKfycbxVS6Ui9PP4Ju4EZG1a7G5v
 function fileToBase64(file){
   // Redimensionne et compresse la photo avant envoi (une photo brute de
   // smartphone pèse plusieurs Mo — ça ralentit l'envoi et peut faire échouer
-  // l'appel). On limite à 1024px de côté max, en JPEG qualité 0.75.
+  // l'appel). On limite à 1400px de côté max, en JPEG qualité 0.82 — un cran
+  // au-dessus de la première version pour mieux lire les petits caractères
+  // des étiquettes, tout en restant largement plus léger qu'une photo brute.
   return new Promise((resolve, reject)=>{
     const reader = new FileReader();
     reader.onload = ()=>{
       const img = new Image();
       img.onload = ()=>{
-        const maxDim = 1024;
+        const maxDim = 1400;
         let { width, height } = img;
         if(width > height && width > maxDim){
           height = Math.round(height * (maxDim / width));
@@ -1204,7 +1224,7 @@ function fileToBase64(file){
         const canvas = document.createElement('canvas');
         canvas.width = width; canvas.height = height;
         canvas.getContext('2d').drawImage(img, 0, 0, width, height);
-        const dataUrl = canvas.toDataURL('image/jpeg', 0.75);
+        const dataUrl = canvas.toDataURL('image/jpeg', 0.82);
         resolve(dataUrl.split(',')[1]);
       };
       img.onerror = reject;
@@ -1228,8 +1248,11 @@ async function scanEtiquette(file){
     });
     if(!res.ok) throw new Error('Réponse serveur ' + res.status);
     const data = await res.json();
-    fillFromOCR(data);
-    statusEl.textContent = 'Champs complétés — vérifie avant d\u2019enregistrer.';
+    if(data.error) throw new Error(data.error);
+    const manquants = fillFromOCR(data);
+    statusEl.textContent = manquants.length
+      ? 'Complété, mais non trouvé sur l\u2019étiquette : ' + manquants.join(', ') + ' — à saisir à la main.'
+      : 'Tous les champs ont été trouvés — vérifie avant d\u2019enregistrer.';
   }catch(err){
     statusEl.textContent = 'Scan impossible (' + err.message + '). Saisie manuelle possible.';
   }finally{
@@ -1242,18 +1265,30 @@ function fillFromOCR(data){
     domaine:'f_domaine', appellation:'f_appellation', millesime:'f_millesime',
     couleur:'f_couleur', format:'f_format', cepages:'f_cepages'
   };
+  const labels = {
+    domaine:'domaine', appellation:'appellation', millesime:'millésime',
+    couleur:'couleur', format:'format', cepages:'cépages'
+  };
+  const manquants = [];
   Object.entries(map).forEach(([key, id])=>{
     const el = document.getElementById(id);
     if(el && data[key] !== undefined && data[key] !== null && data[key] !== ''){
       el.value = data[key];
+    } else if(key !== 'format'){ // le format a une valeur par défaut de toute façon
+      manquants.push(labels[key]);
     }
   });
   // Si l'OCR n'a pas trouvé la couleur mais a trouvé le cépage, on la déduit.
   if((!data.couleur || data.couleur === '') && data.cepages){
     const deduite = inferCouleurFromCepages(data.cepages);
     const couleurEl = document.getElementById('f_couleur');
-    if(deduite && couleurEl) couleurEl.value = deduite;
+    if(deduite && couleurEl){
+      couleurEl.value = deduite;
+      const idx = manquants.indexOf('couleur');
+      if(idx !== -1) manquants.splice(idx, 1);
+    }
   }
+  return manquants;
 }
 
 // ---------- RÉFÉRENTIEL D'APOGÉE (estimation instantanée, sans réseau) ----------
@@ -1372,7 +1407,90 @@ document.getElementById('cfgToggle').onclick = (e)=>{
   render();
 };
 
-loadState().then(()=>{
+// ---------- SOMMELIER VIRTUEL : "Qu'est-ce qu'on boit ce soir ?" ----------
+document.getElementById('pairingFab').onclick = openPairingSheet;
+
+function openPairingSheet(){
+  sheetEl.innerHTML = `
+    <h2 class="serif">Qu'est-ce qu'on boit ce soir ?</h2>
+    <div class="sub">Décris le repas, l'occasion, le nombre de convives…</div>
+    <div class="field">
+      <textarea id="pairingContext" rows="4" placeholder="Ex : blanquette de veau, repas de semaine à deux"></textarea>
+    </div>
+    <button type="button" class="btn gold" id="pairingSubmit" style="width:100%;margin-bottom:10px;">Proposer une bouteille</button>
+    <div id="pairingResults"></div>
+    <div class="sheet-actions">
+      <button class="btn ghost" id="cancelBtn" style="width:100%;">Fermer</button>
+    </div>
+  `;
+  overlay.classList.add('show');
+  document.getElementById('cancelBtn').onclick = closeSheet;
+  document.getElementById('pairingSubmit').onclick = submitPairingRequest;
+}
+
+function getAvailableBottlesForPairing(){
+  return Object.values(state.bottles)
+    .filter(b => b.position && b.statut !== 'bue')
+    .map(b => ({
+      position: b.position,
+      domaine: b.domaine, appellation: b.appellation, millesime: b.millesime,
+      couleur: b.couleur, cepages: b.cepages,
+      statut: computeStatut(b)
+    }));
+}
+
+async function submitPairingRequest(){
+  const contexte = document.getElementById('pairingContext').value.trim();
+  const resultsEl = document.getElementById('pairingResults');
+  const btn = document.getElementById('pairingSubmit');
+  if(!contexte){
+    resultsEl.innerHTML = '<div style="font-size:12px;color:var(--text-dim);">Décris au moins brièvement le repas ou l\u2019occasion.</div>';
+    return;
+  }
+  const bouteilles = getAvailableBottlesForPairing();
+  if(bouteilles.length === 0){
+    resultsEl.innerHTML = '<div style="font-size:12px;color:var(--text-dim);">Aucune bouteille disponible dans la cave pour l\u2019instant.</div>';
+    return;
+  }
+  resultsEl.innerHTML = '<div style="font-size:12px;color:var(--text-dim);">Le sommelier réfléchit…</div>';
+  btn.disabled = true;
+  try{
+    const res = await fetch(GAS_URL, {
+      method:'POST',
+      body: JSON.stringify({ action:'suggerer_accord', contexte, bouteilles })
+    });
+    if(!res.ok) throw new Error('Réponse serveur ' + res.status);
+    const data = await res.json();
+    if(data.error) throw new Error(data.error);
+    renderPairingSuggestions(data.suggestions || []);
+  }catch(err){
+    resultsEl.innerHTML = '<div style="font-size:12px;color:var(--wine-bright);">Suggestion impossible (' + err.message + ').</div>';
+  }finally{
+    btn.disabled = false;
+  }
+}
+
+function renderPairingSuggestions(suggestions){
+  const resultsEl = document.getElementById('pairingResults');
+  if(suggestions.length === 0){
+    resultsEl.innerHTML = '<div style="font-size:12px;color:var(--text-dim);">Aucune suggestion trouvée dans la cave actuelle.</div>';
+    return;
+  }
+  resultsEl.innerHTML = suggestions.map(s=>{
+    const bottle = Object.values(state.bottles).find(b => b.position === s.position);
+    const found = bottle ? findModuleById(bottle.module) : null;
+    const modName = found ? found.mod.name : '';
+    return `
+      <div class="pairing-card">
+        <h3 class="serif">${s.domaine || 'Sans nom'}</h3>
+        <div class="sub">${s.appellation || ''} ${s.millesime || ''}${modName ? ' — ' + modName : ''}</div>
+        <div class="raison">${s.raison || ''}</div>
+      </div>
+    `;
+  }).join('');
+}
+
+
   // Déclenchement depuis un Raccourci iOS après scan NFC natif :
   // l'URL est ouverte avec ?scan=moduleId:row:col
   const params = new URLSearchParams(location.search);
