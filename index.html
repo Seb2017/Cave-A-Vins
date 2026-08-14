@@ -628,7 +628,9 @@ function ficheForm(mod, key, prefill){
   return `
     <h2 class="serif">${prefill ? 'Modifier la bouteille' : 'Nouvelle bouteille'}</h2>
     <div class="sub">${mod.name}</div>
-    <button type="button" class="btn ghost" id="nfcAssocBtn" style="width:100%;margin-bottom:8px;">Associer une puce NFC à cet emplacement</button>
+    <button type="button" class="btn ghost" id="nfcAssocBtn" style="width:100%;margin-bottom:6px;">Associer une puce NFC à cet emplacement</button>
+    <div style="font-size:10px;color:var(--text-dim);margin-bottom:2px;">Identifiant technique (pour écrire depuis Raccourcis iOS) :</div>
+    <input readonly value="${key}" style="width:100%;font-size:11px;padding:6px 8px;margin-bottom:6px;background:var(--panel-2);border:1px solid var(--line);border-radius:4px;color:var(--text-dim);" onclick="this.select();">
     <div id="nfcAssocStatus" style="font-size:11px;color:var(--text-dim);margin-bottom:12px;min-height:14px;"></div>
     <button type="button" class="btn gold" id="scanBtn" style="width:100%;margin-bottom:6px;">Scanner l'étiquette</button>
     <input type="file" id="scanInput" accept="image/*" capture="environment" style="display:none;">
@@ -694,7 +696,9 @@ function ficheView(b, key){
   return `
     <h2 class="serif">${b.domaine || 'Sans nom'}</h2>
     <div class="sub">${b.appellation || ''} ${b.millesime || ''}</div>
-    <button type="button" class="btn ghost" id="nfcAssocBtn" style="width:100%;margin-bottom:8px;">Associer une puce NFC à cet emplacement</button>
+    <button type="button" class="btn ghost" id="nfcAssocBtn" style="width:100%;margin-bottom:6px;">Associer une puce NFC à cet emplacement</button>
+    <div style="font-size:10px;color:var(--text-dim);margin-bottom:2px;">Identifiant technique (pour écrire depuis Raccourcis iOS) :</div>
+    <input readonly value="${key}" style="width:100%;font-size:11px;padding:6px 8px;margin-bottom:6px;background:var(--panel-2);border:1px solid var(--line);border-radius:4px;color:var(--text-dim);" onclick="this.select();">
     <div id="nfcAssocStatus" style="font-size:11px;color:var(--text-dim);margin-bottom:12px;min-height:14px;"></div>
     <div class="field"><label>Statut${auto ? ' — calculé automatiquement selon la fenêtre d\u2019apogée' : ''}</label>
       <div class="status-pick" style="${auto ? 'opacity:0.55;pointer-events:none;' : ''}">
