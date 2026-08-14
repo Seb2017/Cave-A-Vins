@@ -999,12 +999,35 @@ let nfcMovePending = null; // bouteille en attente de scan de la case de destina
 function handleNfcReading(event){
   if(!nfcScreen.classList.contains('show')) return; // écran fermé entre-temps
   let tagValue = '';
+  let diag = [];
   for(const record of event.message.records){
+    diag.push(record.recordType);
+    if(record.recordType === 'url' || record.recordType === 'absolute-url'){
+      const decoder = new TextDecoder(record.encoding || 'utf-8');
+      const url = decoder.decode(record.data);
+      try{
+        tagValue = new URL(url).searchParams.get('scan') || '';
+      }catch(e){ tagValue = ''; }
+      if(tagValue) break;
+    }
     if(record.recordType === 'text'){
+      // Compatibilité avec les puces écrites avant le passage au format URL.
       const decoder = new TextDecoder(record.encoding || 'utf-8');
       tagValue = decoder.decode(record.data);
       break;
     }
+  }
+  if(!tagValue){
+    // Diagnostic : rien de reconnu, on affiche le contenu brut pour comprendre.
+    let rawDump = event.message.records.map(r=>{
+      try{ return r.recordType + ' : ' + new TextDecoder().decode(r.data); }
+      catch(e){ return r.recordType + ' : (illisible)'; }
+    }).join(' | ');
+    nfcContent.innerHTML = `
+      <div class="nfc-pulse">🍷</div>
+      <div class="nfc-status">Puce lue mais non reconnue.<br><br><span style="font-size:11px;">${rawDump || 'aucun enregistrement'}</span></div>
+    `;
+    return;
   }
   resolvePositionKey(tagValue);
 }
@@ -1108,7 +1131,12 @@ async function associatePositionTag(key, statusElId){
   if(statusEl) statusEl.textContent = 'Approche la puce à coller sur l\u2019étagère…';
   try{
     const writer = new NDEFReader();
-    await writer.write({ records: [{ recordType: 'text', data: key }] });
+    // On écrit une VRAIE URL (pas juste le texte de la position) : n'importe
+    // quel appareil (iPhone compris) sait ouvrir un tag NFC contenant une URL,
+    // nativement, sans app ni automatisation à configurer.
+    const baseUrl = location.href.split('?')[0];
+    const fullUrl = baseUrl + '?scan=' + encodeURIComponent(key);
+    await writer.write({ records: [{ recordType: 'url', data: fullUrl }] });
     if(statusEl) statusEl.textContent = 'Puce associée à cet emplacement ✓ — colle-la maintenant.';
   }catch(err){
     if(statusEl) statusEl.textContent = 'Écriture impossible (' + err.message + ').';
