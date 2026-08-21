@@ -612,11 +612,12 @@ function computeStatut(bottle){
 function computeCellSize(cols){
   // Utilise toute la largeur disponible plutôt qu'une taille fixe — un module
   // à peu de colonnes (ex. 6, largeur typique d'une clayette) profite de
-  // cases nettement plus grandes qu'un module à 20 colonnes.
-  const available = main.clientWidth - 32; // moins le padding du module (16px de chaque côté)
+  // cases plus grandes qu'un module à 20 colonnes, avec une marge de
+  // sécurité un peu plus large pour ne jamais déborder du cadre.
+  const available = main.clientWidth - 40; // padding du module + marge de sécurité
   const gapTotal = 6 * (cols - 1);
   const raw = Math.floor((available - gapTotal) / cols);
-  return Math.max(34, Math.min(64, raw));
+  return Math.max(34, Math.min(46, raw));
 }
 
 function couleurHex(c){
@@ -649,10 +650,17 @@ function renderModule(mod, positionMap){
       <div class="cfg-row">
         <label>Profondeur (bouteilles superposées)</label>
         <input class="num" type="number" min="1" max="2" value="${mod.depth||1}" data-field="depth" />
+      </div>
+      <div class="cfg-row">
+        <label>Alignement</label>
+        <select data-field="alignment" style="background:var(--panel-2);color:var(--text);border:1px solid var(--line);border-radius:3px;padding:7px 9px;font-size:13px;">
+          <option value="grille" ${(!mod.alignment||mod.alignment==='grille')?'selected':''}>Grille</option>
+          <option value="quinconce" ${mod.alignment==='quinconce'?'selected':''}>Quinconce</option>
+        </select>
         <button class="btn ghost" data-action="del">Supprimer</button>
       </div>
     `;
-    wrap.querySelectorAll('input').forEach(inp=>{
+    wrap.querySelectorAll('input, select').forEach(inp=>{
       inp.addEventListener('change', e=>{
         const f = e.target.dataset.field;
         let v = e.target.value;
@@ -680,10 +688,13 @@ function renderModule(mod, positionMap){
   gridWrap.className = 'grid-wrap';
   const grid = document.createElement('div');
   grid.className = 'grid';
+  grid.style.cssText = 'display:flex;flex-direction:column;gap:6px;width:max-content;';
   const depth = mod.depth || 1;
   const cellSize = computeCellSize(mod.cols);
-  grid.style.gridTemplateColumns = `repeat(${mod.cols}, ${cellSize}px)`;
+  const quinconce = mod.alignment === 'quinconce';
   for(let r=0;r<mod.rows;r++){
+    const rowDiv = document.createElement('div');
+    rowDiv.style.cssText = 'display:flex;gap:6px;' + (quinconce && r % 2 === 1 ? `margin-left:${Math.round((cellSize+6)/2)}px;` : '');
     for(let c=0;c<mod.cols;c++){
       if(depth === 1){
         const key = `${mod.id}:${r}:${c}`;
@@ -708,12 +719,12 @@ function renderModule(mod, positionMap){
             openSheet(mod, r, c, key);
           }
         };
-        grid.appendChild(cell);
+        rowDiv.appendChild(cell);
       } else {
         // Case à 2 niveaux de profondeur : arrière (décalée, en fond) + avant (au premier plan)
         const subSize = Math.round(cellSize * 0.65);
         const wrapCell = document.createElement('div');
-        wrapCell.style.cssText = `width:${cellSize}px;height:${cellSize}px;position:relative;`;
+        wrapCell.style.cssText = `width:${cellSize}px;height:${cellSize}px;position:relative;flex-shrink:0;`;
         [0,1].forEach(d=>{
           const key = `${mod.id}:${r}:${c}:${d}`;
           const bottle = positionMap[key];
@@ -739,9 +750,10 @@ function renderModule(mod, positionMap){
           };
           wrapCell.appendChild(sub);
         });
-        grid.appendChild(wrapCell);
+        rowDiv.appendChild(wrapCell);
       }
     }
+    grid.appendChild(rowDiv);
   }
   gridWrap.appendChild(grid);
   wrap.appendChild(gridWrap);
