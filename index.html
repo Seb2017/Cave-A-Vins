@@ -123,6 +123,15 @@
     border-radius:50%;
   }
   .cell.garde{border-color:var(--slate);}
+  .cell.highlight{
+    box-shadow:0 0 0 3px var(--gold), 0 0 14px 4px rgba(201,162,39,0.55);
+    animation:cell-highlight-pulse 1.1s ease-in-out infinite;
+    z-index:3;
+  }
+  @keyframes cell-highlight-pulse{
+    0%,100%{box-shadow:0 0 0 3px var(--gold), 0 0 14px 4px rgba(201,162,39,0.55);}
+    50%{box-shadow:0 0 0 3px var(--gold), 0 0 22px 8px rgba(201,162,39,0.85);}
+  }
   .cell.apogee{border-color:var(--gold);}
   .cell.aboire{border-color:var(--wine-bright);}
   .cell.empty:active{background:var(--panel-2);}
@@ -403,6 +412,7 @@ let state = {
   activeRoom: 'buanderie',
   configMode: false,
   loaded: false,
+  highlightKey: null,
   rooms: {
     buanderie: {
       label: 'Buanderie',
@@ -670,7 +680,7 @@ function renderModule(mod, positionMap){
         const key = `${mod.id}:${r}:${c}`;
         const bottle = positionMap[key];
         const cell = document.createElement('button');
-        cell.className = 'cell ' + (bottle ? computeStatut(bottle) : 'empty');
+        cell.className = 'cell ' + (bottle ? computeStatut(bottle) : 'empty') + (key === state.highlightKey ? ' highlight' : '');
         if(bottle){
           const neck = document.createElement('span');
           neck.className = 'neck';
@@ -693,7 +703,7 @@ function renderModule(mod, positionMap){
           const key = `${mod.id}:${r}:${c}:${d}`;
           const bottle = positionMap[key];
           const sub = document.createElement('button');
-          sub.className = 'cell depth-sub ' + (bottle ? computeStatut(bottle) : 'empty');
+          sub.className = 'cell depth-sub ' + (bottle ? computeStatut(bottle) : 'empty') + (key === state.highlightKey ? ' highlight' : '');
           sub.style.cssText = d===0
             ? 'position:absolute;top:0;left:0;width:22px;height:22px;z-index:1;'
             : 'position:absolute;bottom:0;right:0;width:22px;height:22px;z-index:2;';
@@ -1492,6 +1502,8 @@ document.querySelectorAll('.tab').forEach(tab=>{
     document.querySelectorAll('.tab').forEach(t=>t.classList.remove('active'));
     tab.classList.add('active');
     state.activeRoom = tab.dataset.room;
+    state.highlightKey = null;
+    clearTimeout(highlightTimeout);
     render();
   };
 });
@@ -1590,17 +1602,27 @@ function renderPairingSuggestions(suggestions){
   });
 }
 
+let highlightTimeout = null;
+
 function goToSuggestedBottle(position){
   if(!position) return;
   const parts = position.split(':');
-  if(parts.length !== 3) return;
+  if(parts.length !== 3 && parts.length !== 4) return;
   const [modId, r, c] = parts;
   const found = findModuleById(modId);
   if(!found) return;
+  clearTimeout(highlightTimeout);
   state.activeRoom = found.roomKey;
+  state.highlightKey = position;
   closeSheet();
   render();
   openSheet(found.mod, parseInt(r), parseInt(c), position);
+  // Le repère reste visible sur la grille même après fermeture de la fiche,
+  // le temps de repérer physiquement la bouteille — puis s'efface tout seul.
+  highlightTimeout = setTimeout(()=>{
+    state.highlightKey = null;
+    render();
+  }, 15000);
 }
 
 loadState().then(()=>{
