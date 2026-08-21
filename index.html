@@ -109,7 +109,6 @@
     width:max-content;
   }
   .cell{
-    width:34px;height:34px;
     border-radius:3px;
     background:var(--empty);
     border:2px solid var(--line);
@@ -119,7 +118,6 @@
     padding:0;
   }
   .cell .neck{
-    width:16px;height:16px;
     border-radius:50%;
   }
   .cell.garde{border-color:var(--slate);}
@@ -611,6 +609,16 @@ function computeStatut(bottle){
   return bottle.statut || 'garde';
 }
 
+function computeCellSize(cols){
+  // Utilise toute la largeur disponible plutôt qu'une taille fixe — un module
+  // à peu de colonnes (ex. 6, largeur typique d'une clayette) profite de
+  // cases nettement plus grandes qu'un module à 20 colonnes.
+  const available = main.clientWidth - 32; // moins le padding du module (16px de chaque côté)
+  const gapTotal = 6 * (cols - 1);
+  const raw = Math.floor((available - gapTotal) / cols);
+  return Math.max(34, Math.min(64, raw));
+}
+
 function couleurHex(c){
   switch(c){
     case 'Rouge': return '#7a2333';
@@ -672,8 +680,9 @@ function renderModule(mod, positionMap){
   gridWrap.className = 'grid-wrap';
   const grid = document.createElement('div');
   grid.className = 'grid';
-  grid.style.gridTemplateColumns = `repeat(${mod.cols}, 34px)`;
   const depth = mod.depth || 1;
+  const cellSize = computeCellSize(mod.cols);
+  grid.style.gridTemplateColumns = `repeat(${mod.cols}, ${cellSize}px)`;
   for(let r=0;r<mod.rows;r++){
     for(let c=0;c<mod.cols;c++){
       if(depth === 1){
@@ -681,9 +690,14 @@ function renderModule(mod, positionMap){
         const bottle = positionMap[key];
         const cell = document.createElement('button');
         cell.className = 'cell ' + (bottle ? computeStatut(bottle) : 'empty') + (key === state.highlightKey ? ' highlight' : '');
+        cell.style.width = cellSize + 'px';
+        cell.style.height = cellSize + 'px';
         if(bottle){
           const neck = document.createElement('span');
           neck.className = 'neck';
+          const neckSize = Math.round(cellSize * 0.47);
+          neck.style.width = neckSize + 'px';
+          neck.style.height = neckSize + 'px';
           neck.style.background = couleurHex(bottle.couleur);
           cell.appendChild(neck);
         }
@@ -697,20 +711,22 @@ function renderModule(mod, positionMap){
         grid.appendChild(cell);
       } else {
         // Case à 2 niveaux de profondeur : arrière (décalée, en fond) + avant (au premier plan)
+        const subSize = Math.round(cellSize * 0.65);
         const wrapCell = document.createElement('div');
-        wrapCell.style.cssText = 'width:34px;height:34px;position:relative;';
+        wrapCell.style.cssText = `width:${cellSize}px;height:${cellSize}px;position:relative;`;
         [0,1].forEach(d=>{
           const key = `${mod.id}:${r}:${c}:${d}`;
           const bottle = positionMap[key];
           const sub = document.createElement('button');
           sub.className = 'cell depth-sub ' + (bottle ? computeStatut(bottle) : 'empty') + (key === state.highlightKey ? ' highlight' : '');
           sub.style.cssText = d===0
-            ? 'position:absolute;top:0;left:0;width:22px;height:22px;z-index:1;'
-            : 'position:absolute;bottom:0;right:0;width:22px;height:22px;z-index:2;';
+            ? `position:absolute;top:0;left:0;width:${subSize}px;height:${subSize}px;z-index:1;`
+            : `position:absolute;bottom:0;right:0;width:${subSize}px;height:${subSize}px;z-index:2;`;
           if(bottle){
             const neck = document.createElement('span');
             neck.className = 'neck';
-            neck.style.cssText = 'width:11px;height:11px;background:' + couleurHex(bottle.couleur) + ';';
+            const neckSize = Math.round(subSize * 0.5);
+            neck.style.cssText = `width:${neckSize}px;height:${neckSize}px;background:` + couleurHex(bottle.couleur) + ';';
             sub.appendChild(neck);
           }
           sub.onclick = (e)=>{
