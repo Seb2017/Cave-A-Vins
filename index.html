@@ -627,6 +627,10 @@ function renderModule(mod, positionMap){
       <div class="cfg-row">
         <label>Rangées</label><input class="num" type="number" min="1" max="20" value="${mod.rows}" data-field="rows" />
         <label>Colonnes</label><input class="num" type="number" min="1" max="20" value="${mod.cols}" data-field="cols" />
+      </div>
+      <div class="cfg-row">
+        <label>Profondeur (bouteilles superposées)</label>
+        <input class="num" type="number" min="1" max="2" value="${mod.depth||1}" data-field="depth" />
         <button class="btn ghost" data-action="del">Supprimer</button>
       </div>
     `;
@@ -635,6 +639,7 @@ function renderModule(mod, positionMap){
         const f = e.target.dataset.field;
         let v = e.target.value;
         if(f==='rows'||f==='cols') v = Math.max(1, parseInt(v)||1);
+        if(f==='depth') v = Math.max(1, Math.min(2, parseInt(v)||1));
         mod[f] = v;
         saveModulesForRoom(state.activeRoom);
         render();
@@ -658,26 +663,58 @@ function renderModule(mod, positionMap){
   const grid = document.createElement('div');
   grid.className = 'grid';
   grid.style.gridTemplateColumns = `repeat(${mod.cols}, 34px)`;
+  const depth = mod.depth || 1;
   for(let r=0;r<mod.rows;r++){
     for(let c=0;c<mod.cols;c++){
-      const key = `${mod.id}:${r}:${c}`;
-      const bottle = positionMap[key];
-      const cell = document.createElement('button');
-      cell.className = 'cell ' + (bottle ? computeStatut(bottle) : 'empty');
-      if(bottle){
-        const neck = document.createElement('span');
-        neck.className = 'neck';
-        neck.style.background = couleurHex(bottle.couleur);
-        cell.appendChild(neck);
-      }
-      cell.onclick = ()=>{
-        if(state.moveMode){
-          moveBottleTo(mod, r, c, key);
-        } else {
-          openSheet(mod, r, c, key);
+      if(depth === 1){
+        const key = `${mod.id}:${r}:${c}`;
+        const bottle = positionMap[key];
+        const cell = document.createElement('button');
+        cell.className = 'cell ' + (bottle ? computeStatut(bottle) : 'empty');
+        if(bottle){
+          const neck = document.createElement('span');
+          neck.className = 'neck';
+          neck.style.background = couleurHex(bottle.couleur);
+          cell.appendChild(neck);
         }
-      };
-      grid.appendChild(cell);
+        cell.onclick = ()=>{
+          if(state.moveMode){
+            moveBottleTo(mod, r, c, key);
+          } else {
+            openSheet(mod, r, c, key);
+          }
+        };
+        grid.appendChild(cell);
+      } else {
+        // Case à 2 niveaux de profondeur : arrière (décalée, en fond) + avant (au premier plan)
+        const wrapCell = document.createElement('div');
+        wrapCell.style.cssText = 'width:34px;height:34px;position:relative;';
+        [0,1].forEach(d=>{
+          const key = `${mod.id}:${r}:${c}:${d}`;
+          const bottle = positionMap[key];
+          const sub = document.createElement('button');
+          sub.className = 'cell depth-sub ' + (bottle ? computeStatut(bottle) : 'empty');
+          sub.style.cssText = d===0
+            ? 'position:absolute;top:0;left:0;width:22px;height:22px;z-index:1;'
+            : 'position:absolute;bottom:0;right:0;width:22px;height:22px;z-index:2;';
+          if(bottle){
+            const neck = document.createElement('span');
+            neck.className = 'neck';
+            neck.style.cssText = 'width:11px;height:11px;background:' + couleurHex(bottle.couleur) + ';';
+            sub.appendChild(neck);
+          }
+          sub.onclick = (e)=>{
+            e.stopPropagation();
+            if(state.moveMode){
+              moveBottleTo(mod, r, c, key);
+            } else {
+              openSheet(mod, r, c, key);
+            }
+          };
+          wrapCell.appendChild(sub);
+        });
+        grid.appendChild(wrapCell);
+      }
     }
   }
   gridWrap.appendChild(grid);
@@ -727,12 +764,18 @@ function openSheet(mod, r, c, key){
   wireSheet(mod, key, existing);
 }
 
+function depthLabel(key){
+  const parts = key.split(':');
+  if(parts.length !== 4) return '';
+  return parts[3] === '0' ? ' (avant)' : ' (arrière)';
+}
+
 function ficheForm(mod, key, prefill){
   const b = prefill || {};
   const esc = (v)=> (v===undefined||v===null) ? '' : String(v).replace(/"/g,'&quot;');
   return `
     <h2 class="serif">${prefill ? 'Modifier la bouteille' : 'Nouvelle bouteille'}</h2>
-    <div class="sub">${mod.name}</div>
+    <div class="sub">${mod.name}${depthLabel(key)}</div>
     <button type="button" class="btn ghost" id="nfcAssocBtn" style="width:100%;margin-bottom:6px;">Associer une puce NFC à cet emplacement</button>
     <div style="font-size:10px;color:var(--text-dim);margin-bottom:2px;">Identifiant technique (pour écrire depuis Raccourcis iOS) :</div>
     <input readonly value="${key}" style="width:100%;font-size:11px;padding:6px 8px;margin-bottom:6px;background:var(--panel-2);border:1px solid var(--line);border-radius:4px;color:var(--text-dim);" onclick="this.select();">
@@ -800,7 +843,7 @@ function ficheView(b, key){
   const statut = computeStatut(b);
   return `
     <h2 class="serif">${b.domaine || 'Sans nom'}</h2>
-    <div class="sub">${b.appellation || ''} ${b.millesime || ''}</div>
+    <div class="sub">${b.appellation || ''} ${b.millesime || ''}${depthLabel(key)}</div>
     ${renderTimeline(b)}
     <button type="button" class="btn ghost" id="nfcAssocBtn" style="width:100%;margin-bottom:6px;">Associer une puce NFC à cet emplacement</button>
     <div style="font-size:10px;color:var(--text-dim);margin-bottom:2px;">Identifiant technique (pour écrire depuis Raccourcis iOS) :</div>
@@ -1142,7 +1185,7 @@ function handleNfcReading(event){
 // depuis un Raccourci iOS (?scan=moduleId:row:col) — même résultat des deux côtés.
 function resolvePositionKey(tagValue){
   const parts = tagValue.split(':');
-  if(parts.length !== 3){
+  if(parts.length !== 3 && parts.length !== 4){
     nfcContent.innerHTML = `
       <div class="nfc-pulse">🍷</div>
       <div class="nfc-status">Puce non reconnue (pas un emplacement de cave).</div>
