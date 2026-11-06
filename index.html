@@ -213,6 +213,7 @@
   }
   .cave-glass .grid-wrap{padding:4px 2px 0;}
   .cave-glass .cell{background:transparent;border:0;border-radius:50%;}
+  .cave-glass .cell.empty::after{font-size:18px;}
   .cave-glass .cell.empty:active{background:rgba(255,255,255,0.05);}
   .cave-glass .cell.upright{
     border-radius:4px;
@@ -709,7 +710,7 @@ function computeStatut(bottle){
   return bottle.statut || 'garde';
 }
 
-function computeCellSize(cols, extraPadding){
+function computeCellSize(cols, extraPadding, maxSize){
   // Utilise toute la largeur disponible plutôt qu'une taille fixe — un module
   // à peu de colonnes (ex. 6, largeur typique d'une clayette) profite de
   // cases plus grandes qu'un module à 20 colonnes, avec une marge de
@@ -717,7 +718,7 @@ function computeCellSize(cols, extraPadding){
   const available = main.clientWidth - 40 - (extraPadding || 0); // padding du module + marge de sécurité
   const gapTotal = 6 * (cols - 1);
   const raw = Math.floor((available - gapTotal) / cols);
-  return Math.max(34, Math.min(46, raw));
+  return Math.max(34, Math.min(maxSize || 46, raw));
 }
 
 function couleurHex(c){
@@ -741,6 +742,11 @@ function wineClass(c){
     case 'Liquoreux': return 'w-liquoreux';
     default: return 'w-autre';
   }
+}
+function bottleAriaLabel(bottle){
+  if(!bottle) return 'Emplacement vide';
+  const st = { garde:'en garde', apogee:'à l\u2019apogée', aboire:'à boire en priorité' }[computeStatut(bottle)] || '';
+  return [bottle.domaine, bottle.couleur, st].filter(Boolean).join(', ');
 }
 function makeLyingBottle(bottle){
   const disc = document.createElement('span');
@@ -828,7 +834,7 @@ function renderModule(mod, positionMap){
     ? 'display:flex;flex-direction:column;gap:0;width:100%;min-width:max-content;'
     : 'display:flex;flex-direction:column;gap:6px;width:max-content;';
   const depth = mod.depth || 1;
-  const cellSize = computeCellSize(mod.cols, isCave ? 36 : 0);
+  const cellSize = computeCellSize(mod.cols, isCave ? 36 : 0, isCave ? 72 : 46);
   const quinconce = mod.alignment === 'quinconce';
   const dividerAfter = (isCave && mod.rows >= 4) ? Math.ceil(mod.rows / 2) - 1 : -1;
   for(let r=0;r<mod.rows;r++){
@@ -844,6 +850,7 @@ function renderModule(mod, positionMap){
         const bottle = positionMap[key];
         const cell = document.createElement('button');
         cell.className = 'cell ' + (bottle ? computeStatut(bottle) : 'empty') + (key === state.highlightKey ? ' highlight' : '');
+        cell.setAttribute('aria-label', bottleAriaLabel(bottle));
         cell.style.width = cellSize + 'px';
         cell.style.height = (uprightRow ? Math.round(cellSize * 1.45) : cellSize) + 'px';
         if(uprightRow) cell.classList.add('upright');
