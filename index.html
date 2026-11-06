@@ -8,7 +8,7 @@
 <link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,500;9..144,600&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
 <style>
   :root{
-    --bg:#17140f;
+    --bg:#14110d;
     --panel:#211c16;
     --panel-2:#2a2319;
     --line:#3a3228;
@@ -23,7 +23,7 @@
   *{box-sizing:border-box;}
   html,body{margin:0;padding:0;}
   body{
-    background:var(--bg);
+    background:radial-gradient(120% 50% at 50% 0%, #241b13 0%, #14110d 60%) no-repeat, #14110d;
     color:var(--text);
     font-family:'Inter',sans-serif;
     -webkit-font-smoothing:antialiased;
@@ -35,38 +35,41 @@
     padding:28px 20px 16px;
     border-bottom:1px solid var(--line);
     position:sticky;top:0;
-    background:linear-gradient(var(--bg) 85%, transparent);
+    background:linear-gradient(180deg, #211912 0%, #17130e 86%, rgba(20,17,13,0) 100%);
     z-index:10;
   }
   header h1{
     margin:0;
-    font-size:28px;
+    font-size:46px;
+    line-height:1;
     font-weight:500;
-    letter-spacing:0.01em;
+    letter-spacing:-0.01em;
+    color:#f3e9d6;
   }
   header p{
-    margin:4px 0 0;
-    color:var(--text-dim);
-    font-size:13px;
+    margin:6px 0 0;
+    color:#b9ad99;
+    font-size:15px;
   }
 
   .tabs{
     display:flex;
     gap:6px;
     margin-top:18px;
-    border-bottom:1px solid var(--line);
+    border-bottom:1px solid #3a3226;
   }
   .tab{
     background:none;border:none;
     color:var(--text-dim);
     font-family:'Inter',sans-serif;
-    font-size:14px;font-weight:600;
-    padding:10px 4px;
+    font-size:16px;font-weight:600;
+    padding:12px 10px;min-height:44px;
     cursor:pointer;
     border-bottom:2px solid transparent;
-    margin-right:18px;
+    margin-right:2px;
+    color:#b9ad99;
   }
-  .tab.active{color:var(--gold);border-bottom-color:var(--gold);}
+  .tab.active{color:#e0b94a;border-bottom-color:#d4a93c;}
 
   .toolbar{
     display:flex;justify-content:space-between;align-items:center;
@@ -82,7 +85,9 @@
     padding:8px 14px;
     cursor:pointer;
   }
-  .btn.gold{background:var(--gold);color:#1c1710;border:none;}
+  .btn.gold{background:#c9a63f;color:#1a1407;border:none;}
+  .toolbar .btn{min-height:44px;padding:0 16px;font-size:15px;border-radius:4px;}
+  .toolbar .btn.ghost{border-color:#5a4f3d;color:#e9dfcc;}
   .btn.ghost{background:none;border:1px solid var(--line);color:var(--text-dim);}
   .btn:active{transform:scale(0.98);}
 
@@ -111,16 +116,18 @@
   .cell{
     border-radius:3px;
     background:var(--empty);
-    border:2px solid var(--line);
+    border:1px solid var(--line);
     display:flex;align-items:center;justify-content:center;
     cursor:pointer;
     position:relative;
     padding:0;
+    --ring:transparent;--glow:transparent;
   }
-  .cell .neck{
-    border-radius:50%;
-  }
-  .cell.garde{border-color:var(--slate);}
+  .cell > *{pointer-events:none;}
+  /* statut = anneau coloré autour de la bouteille */
+  .cell.garde{--ring:#7ea3c9;--glow:rgba(126,163,201,0.35);}
+  .cell.apogee{--ring:#d9ae3f;--glow:rgba(217,174,63,0.35);}
+  .cell.aboire{--ring:#d0586f;--glow:rgba(208,88,111,0.38);}
   .cell.highlight{
     box-shadow:0 0 0 3px var(--gold), 0 0 14px 4px rgba(201,162,39,0.55);
     animation:cell-highlight-pulse 1.1s ease-in-out infinite;
@@ -130,15 +137,102 @@
     0%,100%{box-shadow:0 0 0 3px var(--gold), 0 0 14px 4px rgba(201,162,39,0.55);}
     50%{box-shadow:0 0 0 3px var(--gold), 0 0 22px 8px rgba(201,162,39,0.85);}
   }
-  .cell.apogee{border-color:var(--gold);}
-  .cell.aboire{border-color:var(--wine-bright);}
   .cell.empty:active{background:var(--panel-2);}
   .cell.empty::after{
     content:'+';
-    color:var(--line);
-    font-size:16px;
+    display:flex;align-items:center;justify-content:center;
+    width:78%;height:78%;box-sizing:border-box;
+    border-radius:50%;border:1px dashed #5a5e63;
+    color:#7d8187;font-size:16px;line-height:1;
   }
-  .cell.empty:active::after{color:var(--text-dim);}
+  .cell.empty:active::after{color:#c9ccd0;border-color:#8a8e93;}
+
+  /* couleur du vin : verre + capsule */
+  .w-rouge{--glass-end:radial-gradient(circle at 50% 50%, #1c2c1f 0%, #0c160d 55%, #040704 100%);--cap-end:radial-gradient(circle at 38% 32%, #b33a52 0%, #7a1428 55%, #4a0c18 100%);--glass-side:linear-gradient(90deg, #070d08 0%, #243324 20%, #121d14 55%, #070c08 100%);--cap-side:#5a1224;}
+  .w-blanc{--glass-end:radial-gradient(circle at 50% 50%, #d6c76a 0%, #a39a43 52%, #5c5a22 100%);--cap-end:radial-gradient(circle at 38% 32%, #fff6d2 0%, #e6d79a 55%, #b9a560 100%);--glass-side:linear-gradient(90deg, #4b5230 0%, #b2b274 22%, #8d9455 55%, #4b5230 100%);--cap-side:#d8c887;}
+  .w-rose{--glass-end:radial-gradient(circle at 50% 50%, #f0b3b5 0%, #c9767c 52%, #6e3036 100%);--cap-end:radial-gradient(circle at 38% 32%, #fff0f2 0%, #e8b4bf 55%, #b97f8c 100%);--glass-side:linear-gradient(90deg, #6e3036 0%, #e3a0a6 22%, #c07279 55%, #6e3036 100%);--cap-side:#e0a9b8;}
+  .w-effervescent{--glass-end:radial-gradient(circle at 50% 50%, #8a8f4a 0%, #4a5226 52%, #1b2010 100%);--cap-end:radial-gradient(circle at 38% 32%, #fff3c4 0%, #e2c25a 55%, #9c7a24 100%);--glass-side:linear-gradient(90deg, #1b2010 0%, #5e6a32 22%, #3a4320 55%, #1b2010 100%);--cap-side:#d9b44a;}
+  .w-liquoreux{--glass-end:radial-gradient(circle at 50% 50%, #f0b54c 0%, #c07a1c 52%, #5e3508 100%);--cap-end:radial-gradient(circle at 38% 32%, #fff0cf 0%, #e7cd8f 55%, #a98a48 100%);--glass-side:linear-gradient(90deg, #5e3508 0%, #d69234 22%, #a8661a 55%, #5e3508 100%);--cap-side:#e2c27a;}
+  .w-autre{--glass-end:radial-gradient(circle at 50% 50%, #6d6a64 0%, #3d3b37 52%, #1b1a18 100%);--cap-end:radial-gradient(circle at 38% 32%, #e6e0d4 0%, #a39a8a 55%, #5a5348 100%);--glass-side:linear-gradient(90deg, #1b1a18 0%, #5d5a54 22%, #3d3b37 55%, #1b1a18 100%);--cap-side:#8a8172;}
+
+  /* bouteille couchée, vue goulot vers l'avant */
+  .bt-disc{
+    position:relative;display:block;width:84%;height:84%;border-radius:50%;
+    background:radial-gradient(circle at 30% 26%, rgba(255,255,255,0.5) 0%, rgba(255,255,255,0) 17%), var(--glass-end);
+    box-shadow:inset 0 0 0 2px rgba(255,255,255,0.05), inset 0 0 10px 3px rgba(0,0,0,0.55), 0 0 0 2.5px var(--ring), 0 0 10px var(--glow), 0 4px 6px rgba(0,0,0,0.65);
+  }
+  .bt-neckring{
+    position:absolute;left:23%;top:23%;width:54%;height:54%;border-radius:50%;
+    background:radial-gradient(circle at 50% 50%, rgba(255,255,255,0.12) 0%, rgba(0,0,0,0.38) 100%);
+    box-shadow:inset 0 0 0 1px rgba(255,255,255,0.14), 0 0 0 1px rgba(0,0,0,0.4);
+  }
+  .bt-cap{
+    position:absolute;left:18%;top:18%;width:64%;height:64%;border-radius:50%;
+    background:var(--cap-end);
+    box-shadow:inset 0 0 0 1px rgba(255,255,255,0.18), 0 1px 2px rgba(0,0,0,0.6);
+  }
+
+  /* bouteille presque debout (dernière rangée de la cave) */
+  .bt-up{
+    position:absolute;left:50%;bottom:5%;width:44%;height:88%;
+    transform:translateX(-50%) rotate(6deg);transform-origin:50% 100%;
+    filter:drop-shadow(0 4px 4px rgba(0,0,0,0.7));
+  }
+  .bt-up > span{position:absolute;display:block;}
+  .bt-up-neck{left:30%;right:30%;bottom:56%;height:40%;border-radius:3px 3px 1px 1px;background:var(--glass-side);}
+  .bt-up-collar{left:22%;right:22%;bottom:74%;height:4%;border-radius:2px;background:var(--ring);box-shadow:0 0 6px var(--glow);}
+  .bt-up-shoulder{left:10%;right:10%;bottom:56%;height:14%;border-radius:50% 50% 0 0 / 100% 100% 0 0;background:var(--glass-side);}
+  .bt-up-body{left:0;right:0;bottom:0;height:60%;border-radius:5px 5px 7px 7px;background:var(--glass-side);box-shadow:inset 0 0 0 1px rgba(255,255,255,0.06);}
+  .bt-up-body::after{content:'';position:absolute;left:14%;top:6%;width:12%;height:88%;border-radius:6px;background:linear-gradient(180deg, rgba(255,255,255,0.32), rgba(255,255,255,0.04));}
+  .bt-up-label{left:8%;right:8%;bottom:12%;height:30%;border-radius:1px;background:linear-gradient(#4a3c28, #4a3c28) 50% 30% / 56% 2px no-repeat, linear-gradient(#4a3c28, #4a3c28) 50% 56% / 40% 2px no-repeat, linear-gradient(180deg, #efe5cc, #d6c9a8);box-shadow:0 0 0 1px rgba(0,0,0,0.3);}
+  .bt-up-cap{left:28%;right:28%;top:0;height:16%;border-radius:2px;background:var(--cap-side);box-shadow:inset 0 0 0 1px rgba(255,255,255,0.16);}
+
+  /* ---- cave à vin : façade verre noir ---- */
+  .module.cave-glass{
+    position:relative;
+    border:0;border-radius:16px;padding:10px;
+    background:linear-gradient(160deg, #222226 0%, #0b0b0c 45%, #17171a 100%);
+    box-shadow:0 18px 40px rgba(0,0,0,0.7), inset 0 0 0 1px rgba(255,255,255,0.08), inset 0 1px 0 rgba(255,255,255,0.18);
+  }
+  .module.cave-glass::after{
+    content:'';position:absolute;top:10px;right:10px;bottom:10px;left:10px;border-radius:8px;pointer-events:none;
+    background:linear-gradient(115deg, rgba(255,255,255,0.07) 0%, rgba(255,255,255,0.02) 28%, rgba(255,255,255,0) 29%, rgba(255,255,255,0) 100%);
+  }
+  .cave-glass .module-head{align-items:center;margin:0;padding:8px 10px 12px;}
+  .cave-glass .module-head h3{font-size:20px;color:#f3e9d6;}
+  .cave-glass .module-type{letter-spacing:0.14em;color:#c9bba3;}
+  .cave-interior{
+    border-radius:8px;padding:0 10px 12px;
+    background:radial-gradient(130% 40% at 50% 0%, rgba(225,235,255,0.20) 0%, rgba(225,235,255,0) 70%), repeating-linear-gradient(90deg, rgba(255,255,255,0.025) 0px, rgba(255,255,255,0.025) 2px, rgba(255,255,255,0) 2px, rgba(255,255,255,0) 9px), linear-gradient(180deg, #3a3d41 0%, #232529 45%, #17181b 100%);
+    box-shadow:inset 0 6px 16px rgba(0,0,0,0.8), inset 0 0 0 1px rgba(0,0,0,0.9);
+  }
+  .cave-light{
+    height:3px;margin:0 -4px 10px;border-radius:2px;
+    background:linear-gradient(90deg, rgba(235,242,255,0), rgba(235,242,255,0.95), rgba(235,242,255,0));
+    box-shadow:0 0 14px 2px rgba(210,225,255,0.45);
+  }
+  .cave-glass .grid-wrap{padding:4px 2px 0;}
+  .cave-glass .cell{background:transparent;border:0;border-radius:50%;}
+  .cave-glass .cell.empty:active{background:rgba(255,255,255,0.05);}
+  .cave-glass .cell.upright{
+    border-radius:4px;
+    background:radial-gradient(ellipse at 50% 100%, var(--glow) 0%, rgba(0,0,0,0) 72%);
+    box-shadow:inset 0 0 0 1.5px var(--ring);
+  }
+  .cave-glass .cell.upright.empty{background:transparent;box-shadow:none;}
+  .cave-glass .cell.upright.empty::after{width:100%;height:100%;border-radius:4px;}
+  .cave-shelf{
+    height:9px;margin:4px 0 8px;border-radius:2px;
+    background:linear-gradient(180deg, #f1e2c2 0%, #d8c196 50%, #b09468 100%);
+    box-shadow:0 4px 6px rgba(0,0,0,0.7), inset 0 1px 0 rgba(255,255,255,0.55);
+  }
+  .cave-divider{
+    display:flex;align-items:center;justify-content:space-between;
+    margin:2px 0 12px;padding:9px 14px;border-radius:3px;
+    background:linear-gradient(180deg, #3b4147, #24282d);
+    box-shadow:inset 0 1px 0 rgba(255,255,255,0.10), 0 3px 6px rgba(0,0,0,0.7);
+    font-size:11px;letter-spacing:0.16em;text-transform:uppercase;color:#aeb8c0;
+  }
 
   .legend{
     display:flex;gap:16px;flex-wrap:wrap;
@@ -150,6 +244,11 @@
   .dot.garde{background:var(--slate);}
   .dot.apogee{background:var(--gold);}
   .dot.aboire{background:var(--wine-bright);}
+  .legend{font-size:15px;color:#e9dfcc;gap:10px 20px;}
+  .legend .legend-title{width:100%;font-size:15px;font-weight:600;color:#d8cdb9;}
+  .wine-sw::after{content:'';position:absolute;inset:27%;border-radius:50%;background:var(--cap-end);}
+  .ring-sw{display:inline-block;width:18px;height:18px;border-radius:50%;box-sizing:border-box;border:3px solid var(--ring);background:#0f0b08;box-shadow:0 0 6px var(--glow);}
+  .wine-sw{position:relative;display:inline-block;width:20px;height:20px;border-radius:50%;background:var(--glass-end);box-shadow:inset 0 0 0 2px rgba(255,255,255,0.08), 0 1px 3px rgba(0,0,0,0.6);}
 
   /* config mode */
   .cfg-row{display:flex;gap:8px;margin-bottom:8px;align-items:center;flex-wrap:wrap;}
@@ -250,9 +349,10 @@
   .pairing-fab{
     position:fixed;right:18px;bottom:24px;z-index:40;
     width:56px;height:56px;border-radius:50%;
-    background:var(--wine);color:#fff;border:1px solid var(--wine-bright);
+    width:60px;height:60px;
+    background:radial-gradient(circle at 35% 30%, #a02a42, #6e1a2e 70%);color:#fff;border:1px solid rgba(255,200,200,0.25);
     font-size:24px;display:flex;align-items:center;justify-content:center;
-    box-shadow:0 4px 14px rgba(0,0,0,0.4);
+    box-shadow:0 8px 20px rgba(0,0,0,0.6), inset 0 1px 0 rgba(255,255,255,0.25);
   }
   .pairing-card{
     background:var(--panel-2);border:1px solid var(--line);border-radius:6px;
@@ -283,19 +383,19 @@
 
 <main id="main"></main>
 
-<div class="legend">
-  <span style="width:100%;color:var(--text-dim);font-weight:600;">Statut (contour de la case)</span>
-  <span><i class="dot garde" style="border-radius:0;width:10px;height:10px;background:none;border:2px solid var(--slate);"></i> En garde</span>
-  <span><i class="dot apogee" style="border-radius:0;width:10px;height:10px;background:none;border:2px solid var(--gold);"></i> À l'apogée</span>
-  <span><i class="dot aboire" style="border-radius:0;width:10px;height:10px;background:none;border:2px solid var(--wine-bright);"></i> À boire en priorité</span>
+<div class="legend" style="margin-top:22px;">
+  <span class="legend-title">Statut (anneau ou contour)</span>
+  <span><i class="ring-sw" style="--ring:#7ea3c9;--glow:rgba(126,163,201,0.35);"></i> En garde</span>
+  <span><i class="ring-sw" style="--ring:#d9ae3f;--glow:rgba(217,174,63,0.35);"></i> À l'apogée</span>
+  <span><i class="ring-sw" style="--ring:#d0586f;--glow:rgba(208,88,111,0.38);"></i> À boire en priorité</span>
 </div>
-<div class="legend" style="margin-top:0;">
-  <span style="width:100%;color:var(--text-dim);font-weight:600;">Couleur du vin (pastille)</span>
-  <span><i class="dot" style="background:#7a2333;"></i> Rouge</span>
-  <span><i class="dot" style="background:#e3d9a8;"></i> Blanc</span>
-  <span><i class="dot" style="background:#e0a9b8;"></i> Rosé</span>
-  <span><i class="dot" style="background:#f0e6b8;"></i> Effervescent</span>
-  <span><i class="dot" style="background:#d9a441;"></i> Liquoreux</span>
+<div class="legend" style="margin-top:14px;">
+  <span class="legend-title">Couleur du vin (verre et capsule)</span>
+  <span><i class="wine-sw w-rouge"></i> Rouge</span>
+  <span><i class="wine-sw w-blanc"></i> Blanc</span>
+  <span><i class="wine-sw w-rose"></i> Rosé</span>
+  <span><i class="wine-sw w-effervescent"></i> Effervescent</span>
+  <span><i class="wine-sw w-liquoreux"></i> Liquoreux</span>
 </div>
 
 <p class="note">Connecté au Google Sheet via le proxy Apps Script — les modifications (bouteilles, modules) sont enregistrées en direct.</p>
@@ -312,7 +412,7 @@
   </div>
 </div>
 
-<button class="pairing-fab" id="pairingFab" title="Qu'est-ce qu'on boit ce soir ?">🍽️</button>
+<button class="pairing-fab" id="pairingFab" title="Qu'est-ce qu'on boit ce soir ?" aria-label="Qu'est-ce qu'on boit ce soir ?"><svg width="30" height="30" viewBox="0 0 24 24" fill="none" stroke="#f6ecd8" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="5.2"/><circle cx="12" cy="12" r="2.6"/><path d="M3.5 4v5.2a1.6 1.6 0 0 0 1.6 1.6h0A1.6 1.6 0 0 0 6.7 9.2V4M5.1 4v16"/><path d="M20.5 4c-1.7 1-2.7 3-2.7 5.4 0 1 .5 1.6 1.2 1.6h1.5M20.5 4v16"/></svg></button>
 
 
 <script>
@@ -609,12 +709,12 @@ function computeStatut(bottle){
   return bottle.statut || 'garde';
 }
 
-function computeCellSize(cols){
+function computeCellSize(cols, extraPadding){
   // Utilise toute la largeur disponible plutôt qu'une taille fixe — un module
   // à peu de colonnes (ex. 6, largeur typique d'une clayette) profite de
   // cases plus grandes qu'un module à 20 colonnes, avec une marge de
   // sécurité un peu plus large pour ne jamais déborder du cadre.
-  const available = main.clientWidth - 40; // padding du module + marge de sécurité
+  const available = main.clientWidth - 40 - (extraPadding || 0); // padding du module + marge de sécurité
   const gapTotal = 6 * (cols - 1);
   const raw = Math.floor((available - gapTotal) / cols);
   return Math.max(34, Math.min(46, raw));
@@ -629,6 +729,30 @@ function couleurHex(c){
     case 'Liquoreux': return '#d9a441';
     default: return '#8a8172';
   }
+}
+
+// ---------- HABILLAGE DES BOUTEILLES (purement visuel) ----------
+function wineClass(c){
+  switch(c){
+    case 'Rouge': return 'w-rouge';
+    case 'Blanc': return 'w-blanc';
+    case 'Rosé': return 'w-rose';
+    case 'Effervescent': return 'w-effervescent';
+    case 'Liquoreux': return 'w-liquoreux';
+    default: return 'w-autre';
+  }
+}
+function makeLyingBottle(bottle){
+  const disc = document.createElement('span');
+  disc.className = 'bt-disc ' + wineClass(bottle.couleur);
+  disc.innerHTML = '<span class="bt-neckring"><span class="bt-cap"></span></span>';
+  return disc;
+}
+function makeUprightBottle(bottle){
+  const b = document.createElement('span');
+  b.className = 'bt-up ' + wineClass(bottle.couleur);
+  b.innerHTML = '<span class="bt-up-neck"></span><span class="bt-up-collar"></span><span class="bt-up-shoulder"></span><span class="bt-up-body"></span><span class="bt-up-label"></span><span class="bt-up-cap"></span>';
+  return b;
 }
 
 function renderModule(mod, positionMap){
@@ -684,17 +808,36 @@ function renderModule(mod, positionMap){
   head.innerHTML = `<h3 class="serif">${mod.name}</h3><span class="module-type">${mod.type}</span>`;
   wrap.appendChild(head);
 
+  // Habillage « cave à vin » (façade verre, clayettes bois) pour les modules de type cave
+  const isCave = /cave/i.test(mod.type || '');
+  let container = wrap;
+  if(isCave){
+    wrap.classList.add('cave-glass');
+    const interior = document.createElement('div');
+    interior.className = 'cave-interior';
+    interior.innerHTML = '<div class="cave-light"></div>';
+    wrap.appendChild(interior);
+    container = interior;
+  }
+
   const gridWrap = document.createElement('div');
   gridWrap.className = 'grid-wrap';
   const grid = document.createElement('div');
   grid.className = 'grid';
-  grid.style.cssText = 'display:flex;flex-direction:column;gap:6px;width:max-content;';
+  grid.style.cssText = isCave
+    ? 'display:flex;flex-direction:column;gap:0;width:100%;min-width:max-content;'
+    : 'display:flex;flex-direction:column;gap:6px;width:max-content;';
   const depth = mod.depth || 1;
-  const cellSize = computeCellSize(mod.cols);
+  const cellSize = computeCellSize(mod.cols, isCave ? 36 : 0);
   const quinconce = mod.alignment === 'quinconce';
+  const dividerAfter = (isCave && mod.rows >= 4) ? Math.ceil(mod.rows / 2) - 1 : -1;
   for(let r=0;r<mod.rows;r++){
     const rowDiv = document.createElement('div');
-    rowDiv.style.cssText = 'display:flex;gap:6px;' + (quinconce && r % 2 === 1 ? `margin-left:${Math.round((cellSize+6)/2)}px;` : '');
+    const uprightRow = isCave && depth === 1 && mod.rows >= 2 && r === mod.rows - 1;
+    const shift = Math.round((cellSize+6)/2);
+    rowDiv.style.cssText = isCave
+      ? 'display:flex;gap:6px;justify-content:center;align-items:flex-end;' + (quinconce && r % 2 === 1 ? `transform:translateX(${shift}px);` : '')
+      : 'display:flex;gap:6px;' + (quinconce && r % 2 === 1 ? `margin-left:${shift}px;` : '');
     for(let c=0;c<mod.cols;c++){
       if(depth === 1){
         const key = `${mod.id}:${r}:${c}`;
@@ -702,15 +845,10 @@ function renderModule(mod, positionMap){
         const cell = document.createElement('button');
         cell.className = 'cell ' + (bottle ? computeStatut(bottle) : 'empty') + (key === state.highlightKey ? ' highlight' : '');
         cell.style.width = cellSize + 'px';
-        cell.style.height = cellSize + 'px';
+        cell.style.height = (uprightRow ? Math.round(cellSize * 1.45) : cellSize) + 'px';
+        if(uprightRow) cell.classList.add('upright');
         if(bottle){
-          const neck = document.createElement('span');
-          neck.className = 'neck';
-          const neckSize = Math.round(cellSize * 0.47);
-          neck.style.width = neckSize + 'px';
-          neck.style.height = neckSize + 'px';
-          neck.style.background = couleurHex(bottle.couleur);
-          cell.appendChild(neck);
+          cell.appendChild(uprightRow ? makeUprightBottle(bottle) : makeLyingBottle(bottle));
         }
         cell.onclick = ()=>{
           if(state.moveMode){
@@ -734,11 +872,7 @@ function renderModule(mod, positionMap){
             ? `position:absolute;top:0;left:0;width:${subSize}px;height:${subSize}px;z-index:1;`
             : `position:absolute;bottom:0;right:0;width:${subSize}px;height:${subSize}px;z-index:2;`;
           if(bottle){
-            const neck = document.createElement('span');
-            neck.className = 'neck';
-            const neckSize = Math.round(subSize * 0.5);
-            neck.style.cssText = `width:${neckSize}px;height:${neckSize}px;background:` + couleurHex(bottle.couleur) + ';';
-            sub.appendChild(neck);
+            sub.appendChild(makeLyingBottle(bottle));
           }
           sub.onclick = (e)=>{
             e.stopPropagation();
@@ -754,9 +888,20 @@ function renderModule(mod, positionMap){
       }
     }
     grid.appendChild(rowDiv);
+    if(isCave){
+      const shelf = document.createElement('div');
+      shelf.className = 'cave-shelf';
+      grid.appendChild(shelf);
+      if(r === dividerAfter){
+        const divider = document.createElement('div');
+        divider.className = 'cave-divider';
+        divider.innerHTML = '<span>Zone haute</span><span>Zone basse</span>';
+        grid.appendChild(divider);
+      }
+    }
   }
   gridWrap.appendChild(grid);
-  wrap.appendChild(gridWrap);
+  container.appendChild(gridWrap);
   return wrap;
 }
 
