@@ -478,10 +478,10 @@
 
 <header>
   <h1 class="serif">Cave</h1>
-  <p>Buanderie · Cuisine — vieillissement &amp; service</p>
+  <p>Cuisine · Buanderie — service &amp; vieillissement</p>
   <div class="tabs">
-    <button class="tab active" data-room="buanderie">Buanderie</button>
-    <button class="tab" data-room="cuisine">Cuisine</button>
+    <button class="tab active" data-room="cuisine">Cuisine</button>
+    <button class="tab" data-room="buanderie">Buanderie</button>
   </div>
   <div class="toolbar">
     <span id="roomHint" style="font-size:12px;color:var(--text-dim);"></span>
@@ -638,23 +638,23 @@ function escHtml(v){
 
 // ---------- STATE ----------
 let state = {
-  activeRoom: 'buanderie',
+  activeRoom: 'cuisine', // la cave de service, consultée le plus souvent, s'ouvre en premier
   configMode: false,
   loaded: false,
   highlightKey: null,
   rooms: {
+    cuisine: {
+      label: 'Cuisine',
+      modules: [
+        { id:'m4', name:'Cave de service', type:'Cave à vin', rows:6, cols:6 },
+      ]
+    },
     buanderie: {
       label: 'Buanderie',
       modules: [
         { id:'m1', name:'Cave de vieillissement', type:'Cave à vin', rows:6, cols:8 },
         { id:'m2', name:'Casier 1', type:'Casier bois', rows:5, cols:5 },
         { id:'m3', name:'Casier 2', type:'Casier bois', rows:5, cols:5 },
-      ]
-    },
-    cuisine: {
-      label: 'Cuisine',
-      modules: [
-        { id:'m4', name:'Cave de service', type:'Cave à vin', rows:6, cols:6 },
       ]
     }
   },
