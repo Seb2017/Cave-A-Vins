@@ -433,7 +433,8 @@
   .hist-item .t{flex:1;min-width:0;display:flex;flex-direction:column;}
   .hist-item .t b{font-weight:600;font-size:14px;}
   .hist-item .t span{font-size:12px;color:var(--text-dim);}
-  .hist-item .d{font-size:12px;color:var(--text-dim);white-space:nowrap;}
+  .hist-item .d{font-size:12px;color:var(--text-dim);white-space:nowrap;text-align:right;}
+  .hist-item .restore{margin-top:4px;min-height:32px;padding:0 10px;border-radius:6px;border:1px solid #5a4f3d;background:none;color:#e0b94a;font-size:13px;font-weight:600;}
   .hist-item .mini{position:relative;flex-shrink:0;width:20px;height:20px;border-radius:50%;background:var(--glass-end);}
   .hist-item .mini::after{content:'';position:absolute;inset:27%;border-radius:50%;background:var(--cap-end);}
 </style>
@@ -842,7 +843,7 @@ function markBottleOut(bottle){
     bottle.statut = before.statut;
     bottle.position = before.position;
     bottle.module = before.module;
-    if(before.date_sortie) bottle.date_sortie = before.date_sortie; else delete bottle.date_sortie;
+    bottle.date_sortie = before.date_sortie || '';
     saveBottle(bottle);
     render();
   });
@@ -863,7 +864,9 @@ function render(){
   if(state.moveMode){
     const banner = document.createElement('div');
     banner.style.cssText = 'background:var(--gold);color:#1c1710;border-radius:4px;padding:10px 12px;margin-bottom:14px;font-size:13px;display:flex;justify-content:space-between;align-items:center;gap:10px;';
-    banner.innerHTML = `<span>Déplacement de <strong>${escHtml(state.moveMode.label)}</strong> — tape la case de destination</span>`;
+    banner.innerHTML = state.moveMode.restore
+      ? `<span>Remise en cave de <strong>${escHtml(state.moveMode.label)}</strong> — tape une case vide (change d\u2019onglet si besoin)</span>`
+      : `<span>Déplacement de <strong>${escHtml(state.moveMode.label)}</strong> — tape la case de destination</span>`;
     const cancelBtn = document.createElement('button');
     cancelBtn.textContent = 'Annuler';
     cancelBtn.className = 'btn ghost';
@@ -1065,13 +1068,16 @@ function openHistorySheet(){
       <div class="hist-item">
         <span class="mini ${wineClass(b.couleur)}"></span>
         <span class="t"><b>${escHtml(b.domaine) || 'Sans nom'}</b><span>${escHtml([b.appellation, b.millesime].filter(Boolean).join(' '))}</span></span>
-        <span class="d">${fmt(b.date_sortie)}</span>
+        <span class="d">${fmt(b.date_sortie)}<br><button type="button" class="restore" data-id="${escHtml(b.id)}">Remettre en cave</button></span>
       </div>`).join('')}
     </div>
     <div class="sheet-actions"><button class="btn ghost" id="cancelBtn" style="width:100%;">Fermer</button></div>
   `;
   overlay.classList.add('show');
   document.getElementById('cancelBtn').onclick = closeSheet;
+  sheetEl.querySelectorAll('.restore').forEach(btn => {
+    btn.onclick = ()=>{ const b = state.bottles[btn.dataset.id]; if(b) startRestoreBottle(b); };
+  });
 }
 
 // ---------- HABILLAGE DES BOUTEILLES (purement visuel) ----------
@@ -1282,9 +1288,24 @@ function moveBottleTo(mod, r, c, key){
   const bottle = state.bottles[move.bottleId];
   bottle.position = key;
   bottle.module = mod.id;
+  if(move.restore){
+    // Remise en cave depuis l'historique : la bouteille n'est plus « bue ».
+    // Statut recalculé d'après l'apogée si elle est connue, sinon « en garde »
+    // (modifiable ensuite dans la fiche, comme pour un ajout).
+    bottle.statut = computeStatut({ apo_deb: bottle.apo_deb, apo_fin: bottle.apo_fin });
+    bottle.date_sortie = '';
+  }
   saveBottle(bottle);
   state.moveMode = null;
   render();
+  if(move.restore) showToast((bottle.domaine || 'Bouteille') + ' remise en cave', null, null, 4000);
+}
+
+function startRestoreBottle(bottle){
+  state.moveMode = { bottleId: bottle.id, fromKey: null, label: bottle.domaine || 'bouteille sans nom', restore: true };
+  closeSheet();
+  render();
+  window.scrollTo({ top: main.offsetTop - 20, behavior: 'smooth' });
 }
 
 // ---------- FICHE BOUTEILLE (sheet) ----------
