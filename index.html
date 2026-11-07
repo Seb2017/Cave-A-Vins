@@ -433,6 +433,20 @@
   .hist-item .t{flex:1;min-width:0;display:flex;flex-direction:column;}
   .hist-item .t b{font-weight:600;font-size:14px;}
   .hist-item .t span{font-size:12px;color:var(--text-dim);}
+  .reuse{padding:12px;border:1px solid #3a3226;border-radius:8px;background:#1d1813;}
+  .reuse-results{margin-top:8px;display:flex;flex-direction:column;gap:6px;}
+  .reuse-results .none{font-size:12px;color:var(--text-dim);}
+  .reuse-or{text-align:center;font-size:12px;color:var(--text-dim);margin:-2px 0 10px;}
+  .reuse-card{display:flex;gap:12px;align-items:flex-start;padding:12px;margin-bottom:14px;border:1px solid #3a3226;border-radius:8px;background:#1d1813;}
+  .reuse-card .t{display:flex;flex-direction:column;gap:2px;min-width:0;}
+  .reuse-card .t b{font-size:16px;font-weight:600;}
+  .reuse-card .t span{font-size:13px;color:var(--text-dim);}
+  .reuse-card .mini{position:relative;flex-shrink:0;width:28px;height:28px;border-radius:50%;background:var(--glass-end);margin-top:2px;}
+  .reuse-card .mini::after{content:'';position:absolute;inset:27%;border-radius:50%;background:var(--cap-end);}
+  .vintage{display:flex;gap:8px;}
+  .vintage .btn{width:52px;min-height:48px;font-size:22px;padding:0;}
+  .field .vintage input{flex:1;text-align:center;font-size:22px;font-family:'Fraunces',serif;min-height:48px;}
+  .reuse-apo{font-size:12px;color:var(--text-dim);margin-top:6px;}
   .hist-item .d{font-size:12px;color:var(--text-dim);white-space:nowrap;text-align:right;}
   .hist-item .restore{margin-top:4px;min-height:32px;padding:0 10px;border-radius:6px;border:1px solid #5a4f3d;background:none;color:#e0b94a;font-size:13px;font-weight:600;}
   .hist-item .mini{position:relative;flex-shrink:0;width:20px;height:20px;border-radius:50%;background:var(--glass-end);}
@@ -1338,6 +1352,13 @@ function ficheForm(mod, key, prefill){
     <div style="font-size:10px;color:var(--text-dim);margin-bottom:2px;">Identifiant technique (pour écrire depuis Raccourcis iOS) :</div>
     <input readonly value="${key}" style="width:100%;font-size:11px;padding:6px 8px;margin-bottom:6px;background:var(--panel-2);border:1px solid var(--line);border-radius:4px;color:var(--text-dim);" onclick="this.select();">
     <div id="nfcAssocStatus" style="font-size:11px;color:var(--text-dim);margin-bottom:12px;min-height:14px;"></div>
+    ${!prefill && Object.keys(state.bottles).length ? `
+    <div class="field reuse">
+      <label>Déjà eue ? Reprendre une fiche</label>
+      <input id="reuseSearch" type="search" placeholder="Domaine ou appellation…" autocomplete="off">
+      <div id="reuseResults" class="reuse-results"></div>
+    </div>
+    <div class="reuse-or">ou</div>` : ''}
     <button type="button" class="btn gold" id="scanBtn" style="width:100%;margin-bottom:6px;">Scanner l'étiquette</button>
     <input type="file" id="scanInput" accept="image/*" capture="environment" style="display:none;">
     <div id="scanStatus" style="font-size:12px;color:var(--text-dim);min-height:16px;margin-bottom:14px;"></div>
@@ -1432,6 +1453,133 @@ function ficheView(b, key){
   `;
 }
 
+// ---------- REPRISE D'UNE FICHE EXISTANTE (sans photo ni appel au script) ----------
+// Regroupe toutes les bouteilles connues (en cave + historique) par vin
+// (domaine + appellation + couleur + format) et garde la plus récente comme modèle.
+function knownWines(){
+  const groups = {};
+  Object.values(state.bottles).forEach(b=>{
+    if(!b.domaine && !b.appellation) return;
+    const k = [b.domaine, b.appellation, b.couleur, b.format].map(normalize).join('|');
+    const when = String(b.date_sortie || b.date_ajout || '');
+    const g = groups[k] || (groups[k] = { ref: b, when: '', enCave: 0, bues: 0 });
+    if(b.statut === 'bue') g.bues++; else if(b.position) g.enCave++;
+    if(when >= g.when){ g.ref = b; g.when = when; }
+  });
+  return Object.values(groups).sort((a, b)=> b.when.localeCompare(a.when));
+}
+
+// Décale la fenêtre d'apogée du modèle selon l'écart de millésime.
+function shiftedApogee(ref, millesime){
+  const deb = parseInt(ref.apo_deb), fin = parseInt(ref.apo_fin);
+  if(!deb || !fin) return { apo_deb: ref.apo_deb || '', apo_fin: ref.apo_fin || '' };
+  const delta = (parseInt(millesime) && parseInt(ref.millesime)) ? parseInt(millesime) - parseInt(ref.millesime) : 0;
+  return { apo_deb: deb + delta, apo_fin: fin + delta };
+}
+
+function wireReuse(mod, key){
+  const input = document.getElementById('reuseSearch');
+  const list = document.getElementById('reuseResults');
+  const wines = knownWines();
+  const draw = ()=>{
+    const q = normalize(input.value.trim());
+    const found = q
+      ? wines.filter(g => q.split(/\s+/).every(w => normalize(g.ref.domaine + ' ' + g.ref.appellation).includes(w))).slice(0, 6)
+      : wines.slice(0, 3);
+    list.innerHTML = found.map((g, i)=>{
+      const r = g.ref;
+      const info = [g.enCave ? g.enCave + ' en cave' : '', g.bues ? g.bues + ' bue' + (g.bues > 1 ? 's' : '') : ''].filter(Boolean).join(' · ');
+      return `<button type="button" class="result" data-i="${i}">` +
+        `<span class="mini ${wineClass(r.couleur)}" style="--ring:transparent;"></span>` +
+        `<span class="t"><b>${escHtml(r.domaine) || 'Sans nom'}</b><span>${escHtml([r.appellation, r.millesime].filter(Boolean).join(' '))}${info ? ' — ' + info : ''}</span></span></button>`;
+    }).join('') || '<div class="none">Aucune fiche correspondante.</div>';
+    list.querySelectorAll('.result').forEach(el=>{
+      el.onclick = ()=> openReuseConfirm(mod, key, found[parseInt(el.dataset.i)].ref);
+    });
+  };
+  input.addEventListener('input', draw);
+  draw();
+}
+
+// Écran court : la fiche reprise + le millésime à valider, puis rangement direct.
+function openReuseConfirm(mod, key, ref){
+  const defaultMillesime = ref.millesime || '';
+  sheetEl.innerHTML = `
+    <h2 class="serif">Reprendre la fiche</h2>
+    <div class="sub">${escHtml(mod.name)}${depthLabel(key)}</div>
+    <div class="reuse-card">
+      <span class="mini ${wineClass(ref.couleur)}"></span>
+      <span class="t">
+        <b>${escHtml(ref.domaine) || 'Sans nom'}</b>
+        <span>${escHtml([ref.appellation, ref.couleur, ref.format].filter(Boolean).join(' · '))}</span>
+        ${ref.cepages ? `<span>${escHtml(ref.cepages)}</span>` : ''}
+      </span>
+    </div>
+    <div class="field">
+      <label>Millésime de cette bouteille</label>
+      <div class="vintage">
+        <button type="button" class="btn ghost" id="vMinus" aria-label="Millésime précédent">−</button>
+        <input id="reuseMillesime" type="number" inputmode="numeric" value="${escHtml(defaultMillesime)}" placeholder="ex. 2020">
+        <button type="button" class="btn ghost" id="vPlus" aria-label="Millésime suivant">+</button>
+      </div>
+      <div class="reuse-apo" id="reuseApo"></div>
+    </div>
+    <div class="sheet-actions">
+      <button class="btn ghost" id="reuseEdit">Modifier les détails</button>
+      <button class="btn gold" id="reuseSave">Ranger la bouteille</button>
+    </div>
+    <button type="button" class="btn ghost" id="cancelBtn" style="width:100%;margin-top:10px;">Annuler</button>
+  `;
+  const mInput = document.getElementById('reuseMillesime');
+  const apoEl = document.getElementById('reuseApo');
+  const build = ()=>{
+    const millesime = mInput.value.trim();
+    const apo = shiftedApogee(ref, millesime);
+    return {
+      domaine: ref.domaine || '', appellation: ref.appellation || '', millesime,
+      couleur: ref.couleur || '', format: ref.format || '75cl', cepages: ref.cepages || '',
+      apo_deb: apo.apo_deb, apo_fin: apo.apo_fin, prix: ref.prix || '', qte: 1,
+      statut: computeStatut({ apo_deb: apo.apo_deb, apo_fin: apo.apo_fin })
+    };
+  };
+  const refresh = ()=>{
+    const v = build();
+    apoEl.textContent = (v.apo_deb && v.apo_fin)
+      ? 'Apogée ' + v.apo_deb + ' – ' + v.apo_fin + (String(v.millesime) !== String(ref.millesime || '') && ref.millesime ? ' (décalée d\u2019après le ' + ref.millesime + ')' : '')
+      : 'Pas de fenêtre d\u2019apogée sur la fiche d\u2019origine.';
+  };
+  const step = (d)=>{ const n = parseInt(mInput.value) || new Date().getFullYear(); mInput.value = n + d; refresh(); };
+  document.getElementById('vMinus').onclick = ()=> step(-1);
+  document.getElementById('vPlus').onclick = ()=> step(1);
+  mInput.addEventListener('input', refresh);
+  refresh();
+
+  document.getElementById('cancelBtn').onclick = closeSheet;
+  document.getElementById('reuseEdit').onclick = ()=>{
+    // Formulaire complet prérempli, mais pour une NOUVELLE bouteille (pas de modification de l'ancienne)
+    sheetEl.innerHTML = ficheForm(mod, key, build());
+    const h2 = sheetEl.querySelector('h2'); if(h2) h2.textContent = 'Nouvelle bouteille';
+    wireSheet(mod, key, undefined);
+  };
+  document.getElementById('reuseSave').onclick = ()=>{
+    const v = build();
+    if(!/^\d{4}$/.test(String(v.millesime)) && !confirm('Aucun millésime valide — ranger quand même ?')) return;
+    const occupant = getPositionMap()[key];
+    if(occupant){
+      alert('Cette case est déjà occupée par une autre bouteille — recharge la page ou choisis un autre emplacement.');
+      return;
+    }
+    const bottle = Object.assign({ id: generateId() }, v, {
+      module: mod.id, position: key, date_ajout: new Date().toISOString()
+    });
+    state.bottles[bottle.id] = bottle;
+    saveBottle(bottle);
+    closeSheet();
+    render();
+    showToast((bottle.domaine || 'Bouteille') + (bottle.millesime ? ' ' + bottle.millesime : '') + ' rangée', null, null, 3500);
+  };
+}
+
 // ---------- COULEUR DÉDUITE DU CÉPAGE (automatique, sauf choix manuel) ----------
 const CEPAGE_COULEUR = {
   'Cabernet Sauvignon':'Rouge','Cabernet Franc':'Rouge','Merlot':'Rouge',
@@ -1464,6 +1612,8 @@ function wireSheet(mod, key, existing){
       wireSheet(mod, key, existing);
     };
   }
+
+  if(document.getElementById('reuseSearch')) wireReuse(mod, key);
 
   const nfcAssocBtn = document.getElementById('nfcAssocBtn');
   if(nfcAssocBtn){
