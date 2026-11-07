@@ -422,6 +422,9 @@
   .chip.on{background:#2a2319;border-color:#c9a63f;}
   .results{margin-top:10px;display:flex;flex-direction:column;gap:6px;}
   .results .none{font-size:13px;color:var(--text-dim);}
+  .results-head{display:flex;align-items:center;justify-content:space-between;gap:10px;font-size:13px;color:#b9ad99;}
+  .results-close{min-height:36px;padding:0 12px;border-radius:6px;border:1px solid #5a4f3d;background:none;color:#e9dfcc;font-size:14px;font-weight:600;flex-shrink:0;}
+  .results-more{min-height:40px;border-radius:8px;border:1px dashed #5a4f3d;background:none;color:#e0b94a;font-size:14px;font-weight:600;}
   .result{
     display:flex;align-items:center;gap:10px;width:100%;text-align:left;padding:9px 12px;min-height:48px;
     background:#1d1813;border:1px solid #3a3226;border-radius:8px;color:var(--text);font-size:14px;
@@ -991,7 +994,7 @@ function couleurHex(c){
 }
 
 // ---------- RÉSUMÉ, RECHERCHE, FILTRES, HISTORIQUE ----------
-state.filter = { q:'', statut:'' };
+state.filter = { q:'', statut:'', expanded:false };
 const STATUTS = [
   { key:'garde',  name:'En garde',     ring:'#7ea3c9', glow:'rgba(126,163,201,0.35)' },
   { key:'apogee', name:'Apogée', ring:'#d9ae3f', glow:'rgba(217,174,63,0.35)' },
@@ -1044,6 +1047,8 @@ function renderTools(){
   chipsEl.querySelectorAll('.chip').forEach(ch => {
     ch.onclick = ()=>{
       state.filter.statut = state.filter.statut === ch.dataset.s ? '' : ch.dataset.s;
+      state.filter.expanded = false;
+      syncFilterHistory();
       render();
     };
   });
@@ -1057,21 +1062,68 @@ function renderTools(){
     resultsListEl.innerHTML = '<div class="none">Aucune bouteille ne correspond.</div>';
     return;
   }
-  const shown = matches.slice(0, 30);
+  // Liste courte par défaut (5) pour que la cave reste visible juste en dessous.
+  const shown = matches.slice(0, state.filter.expanded ? 30 : 5);
   const st = (b)=> STATUTS.find(s => s.key === computeStatut(b)) || STATUTS[0];
-  resultsListEl.innerHTML = shown.map((b, i) =>
+  const filterName = [state.filter.statut ? (STATUTS.find(x => x.key === state.filter.statut) || {}).name : '', q ? '« ' + q + ' »' : ''].filter(Boolean).join(' · ');
+  resultsListEl.innerHTML =
+    `<div class="results-head"><span>${matches.length} bouteille${matches.length > 1 ? 's' : ''} — ${escHtml(filterName)}</span>` +
+    `<button type="button" class="results-close" id="resultsClose">✕ Fermer</button></div>` +
+    shown.map((b, i) =>
     `<button type="button" class="result" data-i="${i}">` +
     `<span class="mini ${wineClass(b.couleur)}" style="--ring:${st(b).ring};"></span>` +
     `<span class="t"><b>${escHtml(b.domaine) || 'Sans nom'}</b><span>${escHtml([b.appellation, b.millesime].filter(Boolean).join(' '))}${locationLabel(b) ? ' — ' + escHtml(locationLabel(b)) : ''}</span></span>` +
     `</button>`
-  ).join('') + (matches.length > shown.length ? `<div class="none">… et ${matches.length - shown.length} autre(s). Affine la recherche.</div>` : '');
+  ).join('') +
+    (matches.length > shown.length
+      ? (state.filter.expanded
+          ? `<div class="none">… et ${matches.length - shown.length} autre(s). Affine la recherche.</div>`
+          : `<button type="button" class="results-more" id="resultsMore">Afficher les ${Math.min(matches.length, 30)}</button>`)
+      : '');
   resultsListEl.querySelectorAll('.result').forEach(el => {
-    el.onclick = ()=> locateBottle(shown[parseInt(el.dataset.i)]);
+    el.onclick = ()=>{
+      const b = shown[parseInt(el.dataset.i)];
+      clearFilter();      // la liste se referme…
+      locateBottle(b);    // …et on arrive directement sur la bouteille dans la cave
+    };
   });
+  document.getElementById('resultsClose').onclick = clearFilter;
+  const more = document.getElementById('resultsMore');
+  if(more) more.onclick = ()=>{ state.filter.expanded = true; render(); };
 }
 
-searchInput.addEventListener('input', ()=>{ state.filter.q = searchInput.value; render(); });
-searchClear.onclick = ()=>{ searchInput.value = ''; state.filter.q = ''; render(); searchInput.focus(); };
+// Ferme la liste et retire tous les filtres.
+function clearFilter(){
+  state.filter = { q:'', statut:'', expanded:false };
+  searchInput.value = '';
+  syncFilterHistory();
+  render();
+}
+
+// Geste « retour » du téléphone : ferme la liste au lieu de quitter la page.
+// On ajoute une étape dans l'historique du navigateur quand un filtre s'ouvre,
+// et on la retire quand il se ferme autrement.
+let ignoreNextPop = false;
+function syncFilterHistory(){
+  const marked = !!(history.state && history.state.caveFilter);
+  if(filterActive() && !marked){
+    history.pushState({ caveFilter: true }, '');
+  } else if(!filterActive() && marked){
+    ignoreNextPop = true;
+    history.back();
+  }
+}
+window.addEventListener('popstate', ()=>{
+  if(ignoreNextPop){ ignoreNextPop = false; return; }
+  if(filterActive()){
+    state.filter = { q:'', statut:'', expanded:false };
+    searchInput.value = '';
+    render();
+  }
+});
+
+searchInput.addEventListener('input', ()=>{ state.filter.q = searchInput.value; state.filter.expanded = false; syncFilterHistory(); render(); });
+searchClear.onclick = ()=>{ searchInput.value = ''; state.filter.q = ''; syncFilterHistory(); render(); searchInput.focus(); };
 
 // Affiche la pièce de la bouteille, la fait clignoter et l'amène à l'écran.
 function locateBottle(b){
