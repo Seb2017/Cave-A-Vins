@@ -539,6 +539,30 @@
 
 
 <script>
+// ---------- PROFIL DE GOÛT (sommelier IA) ----------
+// Modifie librement ce texte : il est joint à chaque demande au sommelier
+// (« Qu'est-ce qu'on boit ce soir ? »). Il n'est PAS utilisé par le scan d'étiquette.
+const PROFIL_GOUT = `PROFIL DE GOÛT (Sébastien)
+
+Tendance générale : vins ronds, mûrs, fruités et généreux. Il aime la texture et le fruit. Il n'aime pas les vins tendus ou minéraux.
+
+BLANCS
+- Aime : Meursault, Viognier, Marsanne, Côtes de Gascogne (frais, aromatique, facile à boire au quotidien).
+- Sauvignon : apprécié seulement floral, rond et peu sec. Plutôt un Sauvignon du Sud-Ouest que de Loire.
+- N'aime pas : le style "pierre à feu" / silex (Chablis, Pouilly-Fumé, Sancerre sur silex).
+
+ROUGES
+- Préférés : Mas du Novi, cuvée Le Point de Novi 2020 (Grès de Montpellier, élevé en jarre enterrée, goûté et acheté au domaine) ; Celeste Crianza de Torres (Ribera del Duero, 100 % tempranillo).
+- Style : du Sud, charnu, fruité, boisé doux.
+
+LIQUOREUX
+- Aime tous les styles, du Sauternes au Gewurztraminer.
+
+CONSIGNES
+- Proposer d'abord des vins du même registre : ronds, mûrs, aromatiques.
+- Éviter les blancs minéraux et tendus.
+- Accords : le fromage, le foie gras et les desserts sont de bons terrains pour ses liquoreux.`;
+
 // ---------- FILET DE SÉCURITÉ : affiche toute erreur JS à l'écran ----------
 // (pour diagnostiquer sans avoir besoin d'accéder à la console du navigateur)
 (function(){
@@ -2402,7 +2426,13 @@ async function submitPairingRequest(){
   try{
     const res = await fetch(GAS_URL, {
       method:'POST',
-      body: JSON.stringify({ action:'suggerer_accord', contexte, bouteilles })
+      // Le profil de goût est joint au texte du repas : le script Apps Script
+      // l'insère tel quel dans le prompt du sommelier.
+      body: JSON.stringify({
+        action:'suggerer_accord',
+        contexte: contexte + '\n\n---\nÀ prendre en compte pour choisir parmi les bouteilles de la cave :\n' + PROFIL_GOUT,
+        bouteilles
+      })
     });
     if(!res.ok) throw new Error('Réponse serveur ' + res.status);
     const data = await res.json();
