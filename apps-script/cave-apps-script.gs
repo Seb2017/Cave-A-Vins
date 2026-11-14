@@ -49,13 +49,25 @@ function doPost(e) {
     return saveModules(body.room, body.modules);
   }
   if (body.action === 'suggerer_accord') {
-    return suggererAccord(body.contexte, body.bouteilles);
+    return suggererAccord(body.contexte, body.bouteilles, body.profil);
+  }
+  if (body.action === 'sommelier_restaurant') {
+    return sommelierRestaurant(body);
   }
 
   return jsonResponse({ error: 'action inconnue' });
 }
 
-function suggererAccord(contexte, bouteilles) {
+// Ajoute le profil de goût (envoyé par la page, constante PROFIL_GOUT) aux
+// consignes du sommelier. Sans profil, les consignes restent inchangées.
+function avecProfil(systemPrompt, profil) {
+  if (!profil) return systemPrompt;
+  return systemPrompt +
+    "\n\nPROFIL DE GOÛT DE L'UTILISATEUR — tiens-en compte en priorité dans tes choix et tes explications, " +
+    "sans sacrifier la justesse de l'accord :\n" + profil;
+}
+
+function suggererAccord(contexte, bouteilles, profil) {
   const apiKey = PropertiesService.getScriptProperties().getProperty('CLAUDE_API_KEY');
 
   const systemPrompt =
@@ -73,7 +85,7 @@ function suggererAccord(contexte, bouteilles) {
   const payload = {
     model: 'claude-sonnet-4-6',
     max_tokens: 1000,
-    system: systemPrompt,
+    system: avecProfil(systemPrompt, profil),
     messages: [{
       role: 'user',
       content: "Contexte du repas : " + contexte + "\n\nBouteilles disponibles (JSON) :\n" + JSON.stringify(bouteilles)
@@ -107,6 +119,89 @@ function suggererAccord(contexte, bouteilles) {
     return jsonResponse(JSON.parse(cleaned));
   } catch (err) {
     return jsonResponse({ error: 'JSON invalide retourné par le modèle', raw: textBlock.text });
+  }
+}
+
+// ---------- SOMMELIER AU RESTAURANT (photos de la carte des vins) ----------
+
+function sommelierRestaurant(body) {
+  const apiKey = PropertiesService.getScriptProperties().getProperty('CLAUDE_API_KEY');
+  const photos = (body.images || []).slice(0, 4);
+  if (photos.length === 0) {
+    return jsonResponse({ error: 'Aucune photo de la carte des vins' });
+  }
+
+  const systemPrompt =
+    "Tu es le sommelier personnel de l'utilisateur, qui est au restaurant et hésite sur le vin. " +
+    "On te fournit une ou plusieurs photos de la carte des vins, ce qu'il mange, et parfois un budget. " +
+    "Lis attentivement toute la carte : vins au verre, en pichet, en demi-bouteille et en bouteille, avec leurs prix. " +
+    "Recommande 2 à 3 vins EXCLUSIVEMENT présents sur la carte, les mieux adaptés aux plats et à ses goûts, " +
+    "en respectant le budget s'il est indiqué (prix de la carte, tel qu'écrit). Classe-les du meilleur choix au moins bon. " +
+    "N'invente jamais un vin ni un prix : si un élément est illisible, laisse le champ vide. " +
+    "Si les photos ne montrent pas une carte des vins lisible, ne propose rien et explique-le dans 'remarque'. " +
+    "Signale aussi, s'il y en a, jusqu'à 2 vins de la carte à éviter vu ses goûts (ex. un blanc minéral et tendu). " +
+    "Réponds UNIQUEMENT avec un objet JSON valide, sans texte autour, sans balises markdown : " +
+    "{ \"suggestions\": [ { \"nom\": \"domaine ou cuvée tel qu'écrit sur la carte\", \"appellation\": \"...\", " +
+    "\"millesime\": \"...\", \"service\": \"verre, pichet, demi-bouteille ou bouteille\", \"prix\": \"tel qu'écrit, ex. 48 €\", " +
+    "\"raison\": \"1-2 phrases en français : pourquoi ce vin avec ce plat, et pourquoi il devrait lui plaire\" } ], " +
+    "\"a_eviter\": [ { \"nom\": \"...\", \"raison\": \"une phrase courte\" } ], " +
+    "\"remarque\": \"une phrase facultative (carte peu lisible, alternative au verre...), sinon chaîne vide\" }";
+
+  const content = photos.map(img => ({
+    type: 'image',
+    source: { type: 'base64', media_type: img.mime || 'image/jpeg', data: img.data }
+  }));
+  content.push({
+    type: 'text',
+    text: "Ce que nous mangeons : " + (body.plats || 'non précisé') +
+      (body.budget ? "\nBudget maximum : " + body.budget + " €" : "") +
+      "\n\nVoici la carte des vins (" + photos.length + " photo" + (photos.length > 1 ? "s" : "") + "). Réponds en JSON strict."
+  });
+
+  const payload = {
+    model: 'claude-opus-5-5',
+    max_tokens: 16000,
+    // Effort bas : au restaurant, une réponse rapide compte autant que la finesse.
+    output_config: { effort: 'low' },
+    // Si un filtre de sécurité refuse la demande (rare), l'API la relance sur un autre modèle.
+    fallbacks: 'default',
+    system: avecProfil(systemPrompt, body.profil),
+    messages: [{ role: 'user', content: content }]
+  };
+
+  const response = UrlFetchApp.fetch('https://api.anthropic.com/v1/messages', {
+    method: 'post',
+    contentType: 'application/json',
+    headers: {
+      'x-api-key': apiKey,
+      'anthropic-version': '2023-06-01',
+      'anthropic-beta': 'server-side-fallback-2026-07-01'
+    },
+    payload: JSON.stringify(payload),
+    muteHttpExceptions: true
+  });
+
+  const result = JSON.parse(response.getContentText());
+
+  if (result.error) {
+    return jsonResponse({ error: result.error.message || 'Erreur API Claude' });
+  }
+  if (result.stop_reason === 'refusal') {
+    return jsonResponse({ error: 'Le sommelier n\'a pas pu traiter ces photos. Réessaie avec d\'autres photos de la carte.' });
+  }
+
+  // La réponse contient aussi des blocs de réflexion (vides) : on prend le dernier bloc de texte.
+  const textBlocks = (result.content || []).filter(b => b.type === 'text');
+  const lastText = textBlocks[textBlocks.length - 1];
+  if (!lastText) {
+    return jsonResponse({ error: 'Pas de réponse du modèle' });
+  }
+
+  try {
+    const cleaned = lastText.text.replace(/```json|```/g, '').trim();
+    return jsonResponse(JSON.parse(cleaned));
+  } catch (err) {
+    return jsonResponse({ error: 'JSON invalide retourné par le modèle', raw: lastText.text });
   }
 }
 
