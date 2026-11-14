@@ -2554,9 +2554,23 @@ async function submitDiscover(){
     renderDiscover(data);
   }catch(err){
     resultsEl.innerHTML = `<div style="font-size:12px;color:var(--wine-bright);">Découverte impossible (${escHtml(err.message)}). Réessaie dans un instant.</div>`;
+    if(err.message === 'action inconnue') showConfigDiagnostic(resultsEl);
   }finally{
     btn.disabled = false;
   }
+}
+
+// Diagnostic : quelle version des réglages (config.json) le script utilise-t-il ?
+async function showConfigDiagnostic(el){
+  try{
+    const res = await fetch(GAS_URL, { method:'POST', body: JSON.stringify({ action:'diagnostic' }) });
+    const d = await res.json();
+    const msg = d.version
+      ? 'Réglages utilisés par le script : version ' + d.version + ' (' + d.source + '). ' +
+        (d.version < 2 ? 'La nouvelle version n\u2019est pas encore prise en compte : réessaie dans 10 minutes.' : '')
+      : 'Le script ne répond pas au diagnostic : ce n\u2019est peut-être pas la version « télécommandée ».';
+    el.insertAdjacentHTML('beforeend', `<div class="dc-wait" style="margin-top:6px;">${escHtml(msg)}</div>`);
+  }catch(e){ /* diagnostic indisponible : rien à ajouter */ }
 }
 
 function renderDiscover(data){
