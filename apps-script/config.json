@@ -1,6 +1,6 @@
 {
   "_lisezmoi": "Réglages du script Apps Script de la cave. Le script relit ce fichier toutes les 5 minutes : pas besoin de republier le script pour qu'un changement ici soit pris en compte. Ne jamais mettre de clé API ici.",
-  "version": 1,
+  "version": 2,
   "anthropic_version": "2023-06-01",
   "profil_intro": "\n\nPROFIL DE GOÛT DE L'UTILISATEUR — tiens-en compte en priorité dans tes choix et tes explications, sans sacrifier la justesse de l'accord :\n",
   "actions": {
@@ -66,6 +66,28 @@
       },
       "message_refus": "Le sommelier n'a pas pu traiter ces photos. Réessaie avec d'autres photos de la carte.",
       "user": "Ce que nous mangeons : {{plats|non précisé}}{{#budget}}\nBudget maximum : {{budget}} €{{/budget}}\n\nVoici la carte des vins ({{nb_images}} photo{{#plusieurs_images}}s{{/plusieurs_images}}). Réponds en JSON strict."
+    },
+    "decouvrir": {
+      "model": "claude-opus-5-5",
+      "max_tokens": 16000,
+      "output_config": {
+        "effort": "low"
+      },
+      "fallbacks": "default",
+      "betas": [
+        "server-side-fallback-2026-07-01"
+      ],
+      "tools": [
+        {
+          "type": "web_search_20260209",
+          "name": "web_search",
+          "max_uses": 5
+        }
+      ],
+      "profil": true,
+      "message_refus": "Le sommelier n'a pas pu faire cette recherche. Réessaie en changeant un critère.",
+      "system": "Tu es le sommelier personnel de l'utilisateur. Ta mission : lui faire DÉCOUVRIR des vins qu'il ne connaît pas encore et qui correspondent à ses goûts (profil de goût et vins coups de cœur ci-dessous). Propose 4 vins réels, de domaines différents. Au moins un doit venir d'une région ou d'un cépage qu'il ne cite pas, pour élargir ses horizons sans trahir son style. On te donne la liste des vins qu'il possède ou connaît déjà : ne propose jamais l'un d'eux, ni une autre cuvée d'un domaine de cette liste. Respecte la couleur, l'occasion ou le plat, et le budget s'ils sont indiqués. Vérifie par la recherche web (5 recherches au maximum, ciblées) que chaque cuvée existe et se trouve dans le commerce, et relève une fourchette de prix public constatée chez des cavistes ou des sites de vente. N'invente jamais un domaine, une cuvée ou un prix : si tu n'as pas pu vérifier un prix, laisse le champ vide. Ta réponse finale doit être UNIQUEMENT un objet JSON valide, sans texte autour, sans balises markdown, sans citations ni références : { \"suggestions\": [ { \"domaine\": \"...\", \"cuvee\": \"nom de la cuvée, ou vide\", \"appellation\": \"...\", \"couleur\": \"Rouge, Blanc, Rosé, Effervescent ou Liquoreux\", \"cepages\": \"...\", \"prix\": \"fourchette constatée, ex. 15-20 €, ou vide\", \"raison\": \"1-2 phrases en français : pourquoi ce vin devrait lui plaire, en le rapprochant d'un vin qu'il aime quand c'est pertinent\", \"ou_trouver\": \"où l'acheter : cavistes, vente en ligne, au domaine...\" } ], \"remarque\": \"une phrase facultative, sinon chaîne vide\" }",
+      "user": "{{#couleur}}Couleur souhaitée : {{couleur}}\n{{/couleur}}{{#occasion}}Occasion ou plat : {{occasion}}\n{{/occasion}}{{#budget}}Budget maximum par bouteille : {{budget}} €\n{{/budget}}\nVins qu'il possède ou connaît déjà (à ne pas proposer) :\n{{deja_connus|aucun}}\n\nFais-moi découvrir de nouveaux vins. Réponds en JSON strict."
     }
   }
 }

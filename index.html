@@ -480,6 +480,11 @@
   .resto-note{font-size:13px;color:#d8cdb9;margin-bottom:10px;}
   .resto-avoid{font-size:13px;color:var(--text-dim);border-left:3px solid #d0586f;padding:4px 0 4px 10px;margin:4px 0 10px;display:flex;flex-direction:column;gap:4px;}
   .resto-avoid b{color:#e9dfcc;font-weight:600;}
+  .dc-wait{font-size:13px;color:var(--text-dim);margin-bottom:10px;}
+  .dc-where{font-size:12px;color:#b9ad99;margin-top:6px;}
+  .dc-wish{margin-top:8px;min-height:36px;padding:0 12px;border-radius:6px;border:1px solid #5a3a40;background:none;color:#d0586f;font-size:13px;font-weight:600;}
+  .dc-wish:disabled{opacity:0.7;}
+  .mode-switch button{font-size:13px;}
   .fav-status{font-size:12px;color:var(--text-dim);min-height:16px;margin-bottom:8px;}
   .fav-form{padding:12px;margin-bottom:12px;border:1px solid #3a3226;border-radius:8px;background:#1d1813;}
   .fav-title{font-size:13px;color:#b9ad99;margin:4px 0 2px;}
@@ -2419,8 +2424,9 @@ function openPairingSheet(){
   sheetEl.innerHTML = `
     <h2 class="serif">Qu'est-ce qu'on boit ?</h2>
     <div class="mode-switch" role="tablist">
-      <button type="button" role="tab" class="on" data-mode="cave" aria-selected="true">Dans ma cave</button>
-      <button type="button" role="tab" data-mode="resto" aria-selected="false">Au restaurant</button>
+      <button type="button" role="tab" class="on" data-mode="cave" aria-selected="true">Ma cave</button>
+      <button type="button" role="tab" data-mode="resto" aria-selected="false">Restaurant</button>
+      <button type="button" role="tab" data-mode="decouvrir" aria-selected="false">Découvrir</button>
       <button type="button" role="tab" data-mode="gouts" aria-selected="false">Mes goûts</button>
     </div>
 
@@ -2446,6 +2452,24 @@ function openPairingSheet(){
       </div>
       <button type="button" class="btn gold" id="restoSubmit" style="width:100%;margin-bottom:10px;">Conseille-moi</button>
       <div id="restoResults"></div>
+    </div>
+
+    <div id="modeDecouvrir" hidden>
+      <div class="sub">Des vins que tu ne connais pas encore, choisis d'après tes goûts. Le sommelier vérifie sur internet qu'ils existent et relève leur prix.</div>
+      <div class="row2">
+        <div class="field"><label>Couleur</label>
+          <select id="dcCouleur"><option value="">Toutes</option><option>Rouge</option><option>Blanc</option><option>Rosé</option><option>Effervescent</option><option>Liquoreux</option></select>
+        </div>
+        <div class="field"><label>Budget max (facultatif)</label>
+          <input id="dcBudget" type="number" inputmode="numeric" placeholder="€ / bouteille">
+        </div>
+      </div>
+      <div class="field"><label>Occasion ou plat (facultatif)</label>
+        <input id="dcOccasion" placeholder="Ex : barbecue entre amis, fromages, apéritif">
+      </div>
+      <button type="button" class="btn gold" id="dcSubmit" style="width:100%;margin-bottom:10px;">Fais-moi découvrir</button>
+      <div id="dcResults"></div>
+      <div id="wishList"></div>
     </div>
 
     <div id="modeGouts" hidden>
@@ -2476,10 +2500,119 @@ function openPairingSheet(){
       document.getElementById('modeCave').hidden = mode !== 'cave';
       document.getElementById('modeResto').hidden = mode !== 'resto';
       document.getElementById('modeGouts').hidden = mode !== 'gouts';
+      document.getElementById('modeDecouvrir').hidden = mode !== 'decouvrir';
     };
   });
   wireRestaurantMode();
   wireFavorites();
+  wireDiscover();
+}
+
+// ---------- DÉCOUVRIR : vins inconnus, choisis selon les goûts (avec recherche web) ----------
+// Les vins gardés « à essayer » sont rangés dans le Sheet (statut a_essayer, sans emplacement).
+const WISH = 'a_essayer';
+function wishes(){
+  return Object.values(state.bottles)
+    .filter(b => b.statut === WISH)
+    .sort((a, b)=> String(b.date_ajout || '').localeCompare(String(a.date_ajout || '')));
+}
+function knownWineNames(){
+  const seen = new Set();
+  Object.values(state.bottles).forEach(b => {
+    if(String(b.statut || '').endsWith('_retire')) return;
+    const name = [b.domaine, b.appellation].filter(Boolean).join(' — ');
+    if(name) seen.add(name);
+  });
+  return Array.from(seen).slice(0, 150);
+}
+
+function wireDiscover(){
+  document.getElementById('dcSubmit').onclick = submitDiscover;
+  drawWishes();
+}
+
+async function submitDiscover(){
+  const resultsEl = document.getElementById('dcResults');
+  const btn = document.getElementById('dcSubmit');
+  resultsEl.innerHTML = '<div class="dc-wait">Le sommelier cherche et vérifie… (jusqu\u2019à une minute)</div>';
+  btn.disabled = true;
+  try{
+    const res = await fetch(GAS_URL, {
+      method:'POST',
+      body: JSON.stringify({
+        action:'decouvrir',
+        couleur: document.getElementById('dcCouleur').value,
+        occasion: document.getElementById('dcOccasion').value.trim(),
+        budget: document.getElementById('dcBudget').value.trim(),
+        deja_connus: knownWineNames(),
+        profil: profilComplet()
+      })
+    });
+    if(!res.ok) throw new Error('Réponse serveur ' + res.status);
+    const data = await res.json();
+    if(data.error) throw new Error(data.error);
+    renderDiscover(data);
+  }catch(err){
+    resultsEl.innerHTML = `<div style="font-size:12px;color:var(--wine-bright);">Découverte impossible (${escHtml(err.message)}). Réessaie dans un instant.</div>`;
+  }finally{
+    btn.disabled = false;
+  }
+}
+
+function renderDiscover(data){
+  const resultsEl = document.getElementById('dcResults');
+  const sugg = data.suggestions || [];
+  const isWished = (s)=> wishes().some(w => normalize(w.domaine + '|' + w.appellation) === normalize((s.domaine || '') + '|' + (s.appellation || '')));
+  resultsEl.innerHTML = (data.remarque ? `<div class="resto-note">${escHtml(data.remarque)}</div>` : '') +
+    (sugg.map((s, i) => `
+      <div class="pairing-card">
+        <h3 class="serif">${escHtml(s.domaine) || 'Vin'}${s.cuvee ? ' — ' + escHtml(s.cuvee) : ''}</h3>
+        <div class="sub">${escHtml([s.appellation, s.couleur, s.cepages].filter(Boolean).join(' · '))}${s.prix ? ' — ' + escHtml(s.prix) : ''}</div>
+        <div class="raison">${escHtml(s.raison)}</div>
+        ${s.ou_trouver ? `<div class="dc-where">${escHtml(s.ou_trouver)}</div>` : ''}
+        <button type="button" class="dc-wish" data-i="${i}" ${isWished(s) ? 'disabled' : ''}>${isWished(s) ? '♥ Dans ma liste' : '♥ À essayer'}</button>
+      </div>`).join('') || '<div style="font-size:12px;color:var(--text-dim);">Aucune proposition — change un critère et réessaie.</div>');
+  resultsEl.querySelectorAll('.dc-wish').forEach(btn => {
+    btn.onclick = ()=>{
+      const s = sugg[parseInt(btn.dataset.i)];
+      const b = {
+        id: generateId(), statut: WISH, position: '', module: '',
+        domaine: [s.domaine, s.cuvee].filter(Boolean).join(' — '), appellation: s.appellation || '',
+        couleur: s.couleur || '', cepages: s.cepages || '', prix: '', millesime: '',
+        date_ajout: new Date().toISOString()
+      };
+      state.bottles[b.id] = b;
+      saveBottle(b);
+      btn.textContent = '♥ Dans ma liste'; btn.disabled = true;
+      drawWishes();
+    };
+  });
+}
+
+function drawWishes(){
+  const list = document.getElementById('wishList');
+  if(!list) return;
+  const items = wishes();
+  list.innerHTML = items.length ? `<div class="fav-title" style="margin-top:14px;">À essayer (${items.length})</div>` + items.map(b => `
+    <div class="hist-item">
+      <span class="mini ${wineClass(b.couleur)}"></span>
+      <span class="t"><b>${escHtml(b.domaine) || 'Vin'}</b><span>${escHtml([b.appellation, b.cepages].filter(Boolean).join(' · '))}</span></span>
+      <span class="d"><button type="button" class="restore loved" data-loved="${escHtml(b.id)}">♥ Goûté et aimé</button><br><button type="button" class="restore" data-drop="${escHtml(b.id)}">Retirer</button></span>
+    </div>`).join('') : '';
+  list.querySelectorAll('[data-loved]').forEach(btn => {
+    btn.onclick = ()=>{
+      const b = state.bottles[btn.dataset.loved];
+      b.statut = FAV; saveBottle(b); drawWishes(); drawFavorites();
+      showToast((b.domaine || 'Vin') + ' ajouté à tes goûts', null, null, 3000);
+    };
+  });
+  list.querySelectorAll('[data-drop]').forEach(btn => {
+    btn.onclick = ()=>{
+      const b = state.bottles[btn.dataset.drop];
+      b.statut = WISH + '_retire'; saveBottle(b); drawWishes();
+      showToast((b.domaine || 'Vin') + ' retiré de la liste', 'Annuler', ()=>{ b.statut = WISH; saveBottle(b); drawWishes(); });
+    };
+  });
 }
 
 // ---------- MES GOÛTS : vins coups de cœur ----------
