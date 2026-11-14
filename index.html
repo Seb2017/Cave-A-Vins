@@ -480,6 +480,14 @@
   .resto-note{font-size:13px;color:#d8cdb9;margin-bottom:10px;}
   .resto-avoid{font-size:13px;color:var(--text-dim);border-left:3px solid #d0586f;padding:4px 0 4px 10px;margin:4px 0 10px;display:flex;flex-direction:column;gap:4px;}
   .resto-avoid b{color:#e9dfcc;font-weight:600;}
+  .fav-status{font-size:12px;color:var(--text-dim);min-height:16px;margin-bottom:8px;}
+  .fav-form{padding:12px;margin-bottom:12px;border:1px solid #3a3226;border-radius:8px;background:#1d1813;}
+  .fav-title{font-size:13px;color:#b9ad99;margin:4px 0 2px;}
+  .fav-empty{font-size:13px;color:var(--text-dim);margin:6px 0 10px;}
+  .fav-del{flex-shrink:0;width:36px;height:36px;border-radius:50%;border:1px solid #3a3226;background:none;color:#b9ad99;font-size:14px;}
+  .hist-item .restore.loved{color:#d0586f;border-color:#5a3a40;}
+  .hist-item .restore:disabled{opacity:0.7;}
+  .mode-switch button{padding:0 4px;}
   .hist-item .d{font-size:12px;color:var(--text-dim);white-space:nowrap;text-align:right;}
   .hist-item .restore{margin-top:4px;min-height:32px;padding:0 10px;border-radius:6px;border:1px solid #5a4f3d;background:none;color:#e0b94a;font-size:13px;font-weight:600;}
   .hist-item .mini{position:relative;flex-shrink:0;width:20px;height:20px;border-radius:50%;background:var(--glass-end);}
@@ -1191,15 +1199,26 @@ function openHistorySheet(){
       <div class="hist-item">
         <span class="mini ${wineClass(b.couleur)}"></span>
         <span class="t"><b>${escHtml(b.domaine) || 'Sans nom'}</b><span>${escHtml([b.appellation, b.millesime].filter(Boolean).join(' '))}</span></span>
-        <span class="d">${fmt(b.date_sortie)}<br><button type="button" class="restore" data-id="${escHtml(b.id)}">Remettre en cave</button></span>
+        <span class="d">${fmt(b.date_sortie)}<br><button type="button" class="restore" data-id="${escHtml(b.id)}">Remettre en cave</button><br><button type="button" class="restore loved" data-love="${escHtml(b.id)}">♥ J'ai aimé</button></span>
       </div>`).join('')}
     </div>
     <div class="sheet-actions"><button class="btn ghost" id="cancelBtn" style="width:100%;">Fermer</button></div>
   `;
   overlay.classList.add('show');
   document.getElementById('cancelBtn').onclick = closeSheet;
-  sheetEl.querySelectorAll('.restore').forEach(btn => {
+  sheetEl.querySelectorAll('.restore[data-id]').forEach(btn => {
     btn.onclick = ()=>{ const b = state.bottles[btn.dataset.id]; if(b) startRestoreBottle(b); };
+  });
+  sheetEl.querySelectorAll('.restore[data-love]').forEach(btn => {
+    const b = state.bottles[btn.dataset.love];
+    const already = ()=> favorites().some(f => normalize([f.domaine, f.appellation, f.millesime].join('|')) === normalize([b.domaine, b.appellation, b.millesime].join('|')));
+    if(already()){ btn.textContent = '♥ Dans mes goûts'; btn.disabled = true; }
+    btn.onclick = ()=>{
+      if(!b || already()) return;
+      addFavorite(b);
+      btn.textContent = '♥ Dans mes goûts'; btn.disabled = true;
+      showToast((b.domaine || 'Vin') + ' ajouté à tes goûts', null, null, 3000);
+    };
   });
 }
 
@@ -1546,7 +1565,7 @@ function ficheForm(mod, key, prefill){
     </div>
     <div class="reuse-or">ou</div>` : ''}
     <button type="button" class="btn gold" id="scanBtn" style="width:100%;margin-bottom:6px;">Scanner l'étiquette</button>
-    <input type="file" id="scanInput" accept="image/*" capture="environment" style="display:none;">
+    <input type="file" id="scanInput" accept="image/*" style="display:none;">
     <div id="scanStatus" style="font-size:12px;color:var(--text-dim);min-height:16px;margin-bottom:14px;"></div>
     <div class="field">
       <label>Domaine / Producteur</label>
@@ -2399,6 +2418,7 @@ function openPairingSheet(){
     <div class="mode-switch" role="tablist">
       <button type="button" role="tab" class="on" data-mode="cave" aria-selected="true">Dans ma cave</button>
       <button type="button" role="tab" data-mode="resto" aria-selected="false">Au restaurant</button>
+      <button type="button" role="tab" data-mode="gouts" aria-selected="false">Mes goûts</button>
     </div>
 
     <div id="modeCave">
@@ -2413,8 +2433,8 @@ function openPairingSheet(){
     <div id="modeResto" hidden>
       <div class="sub">Photographie la carte des vins (jusqu'à 4 pages), puis dis ce que vous mangez.</div>
       <div class="resto-photos" id="restoPhotos"></div>
-      <button type="button" class="btn ghost" id="restoAddPhoto" style="width:100%;margin-bottom:12px;">+ Photo de la carte des vins</button>
-      <input type="file" id="restoPhotoInput" accept="image/*" capture="environment" multiple style="display:none;">
+      <button type="button" class="btn ghost" id="restoAddPhoto" style="width:100%;margin-bottom:12px;">+ Photo de la carte (appareil ou galerie)</button>
+      <input type="file" id="restoPhotoInput" accept="image/*" multiple style="display:none;">
       <div class="field"><label>Vos plats</label>
         <textarea id="restoPlats" rows="2" placeholder="Ex : magret de canard et risotto aux cèpes"></textarea>
       </div>
@@ -2423,6 +2443,16 @@ function openPairingSheet(){
       </div>
       <button type="button" class="btn gold" id="restoSubmit" style="width:100%;margin-bottom:10px;">Conseille-moi</button>
       <div id="restoResults"></div>
+    </div>
+
+    <div id="modeGouts" hidden>
+      <div class="sub">Les vins que tu as aimés, ici ou ailleurs. Le sommelier s'en sert, en plus de ton profil, pour te conseiller dans ta cave et au restaurant.</div>
+      <button type="button" class="btn gold" id="favPhotoBtn" style="width:100%;margin-bottom:6px;">+ Vin aimé, par photo de l'étiquette</button>
+      <input type="file" id="favPhotoInput" accept="image/*" style="display:none;">
+      <button type="button" class="btn ghost" id="favManualBtn" style="width:100%;margin-bottom:8px;">+ Saisir à la main</button>
+      <div id="favStatus" class="fav-status"></div>
+      <div id="favForm"></div>
+      <div id="favList"></div>
     </div>
 
     <div class="sheet-actions">
@@ -2435,16 +2465,131 @@ function openPairingSheet(){
 
   sheetEl.querySelectorAll('.mode-switch button').forEach(btn => {
     btn.onclick = ()=>{
-      const resto = btn.dataset.mode === 'resto';
+      const mode = btn.dataset.mode;
       sheetEl.querySelectorAll('.mode-switch button').forEach(b => {
         b.classList.toggle('on', b === btn);
         b.setAttribute('aria-selected', b === btn);
       });
-      document.getElementById('modeCave').hidden = resto;
-      document.getElementById('modeResto').hidden = !resto;
+      document.getElementById('modeCave').hidden = mode !== 'cave';
+      document.getElementById('modeResto').hidden = mode !== 'resto';
+      document.getElementById('modeGouts').hidden = mode !== 'gouts';
     };
   });
   wireRestaurantMode();
+  wireFavorites();
+}
+
+// ---------- MES GOÛTS : vins coups de cœur ----------
+// Rangés dans l'onglet « Bouteilles » du Sheet avec le statut « coup_de_coeur »
+// et sans emplacement : ils n'apparaissent pas dans la cave, mais le sommelier
+// les reçoit avec le profil de goût.
+const FAV = 'coup_de_coeur';
+function favorites(){
+  return Object.values(state.bottles)
+    .filter(b => b.statut === FAV)
+    .sort((a, b)=> String(b.date_ajout || '').localeCompare(String(a.date_ajout || '')));
+}
+function profilComplet(){
+  const favs = favorites();
+  if(!favs.length) return PROFIL_GOUT;
+  return PROFIL_GOUT + '\n\nVINS COUPS DE CŒUR (bus et aimés, ajoutés depuis l\u2019appli) :\n' +
+    favs.map(b => '- ' + [b.domaine, b.appellation, b.millesime].filter(Boolean).join(', ') +
+      ([b.couleur, b.cepages].filter(Boolean).length ? ' (' + [b.couleur, b.cepages].filter(Boolean).join(', ') + ')' : '')).join('\n');
+}
+function addFavorite(fields){
+  const b = {
+    id: generateId(), statut: FAV, position: '', module: '',
+    domaine: fields.domaine || '', appellation: fields.appellation || '', millesime: fields.millesime || '',
+    couleur: fields.couleur || '', cepages: fields.cepages || '', format: fields.format || '',
+    date_ajout: new Date().toISOString()
+  };
+  state.bottles[b.id] = b;
+  saveBottle(b);
+  return b;
+}
+
+function wireFavorites(){
+  const status = document.getElementById('favStatus');
+  const input = document.getElementById('favPhotoInput');
+  document.getElementById('favPhotoBtn').onclick = ()=> input.click();
+  document.getElementById('favManualBtn').onclick = ()=>{ status.textContent = ''; showFavoriteForm({}); };
+  input.onchange = async ()=>{
+    const file = input.files && input.files[0];
+    input.value = '';
+    if(!file) return;
+    status.textContent = 'Lecture de l\u2019étiquette…';
+    document.getElementById('favForm').innerHTML = '';
+    try{
+      // Même lecture d'étiquette que pour ranger une bouteille.
+      const base64 = await fileToBase64(file);
+      const res = await fetch(GAS_URL, { method:'POST', body: JSON.stringify({ action:'ocr_etiquette', image: base64, mime:'image/jpeg' }) });
+      if(!res.ok) throw new Error('Réponse serveur ' + res.status);
+      const data = await res.json();
+      if(data.error) throw new Error(data.error);
+      status.textContent = 'Vérifie et complète si besoin :';
+      showFavoriteForm(data);
+    }catch(err){
+      status.textContent = 'Lecture impossible (' + err.message + '). Tu peux saisir le vin à la main.';
+      showFavoriteForm({});
+    }
+  };
+  drawFavorites();
+}
+
+function showFavoriteForm(v){
+  const box = document.getElementById('favForm');
+  const opt = (c)=> `<option ${v.couleur === c ? 'selected' : ''}>${c}</option>`;
+  box.innerHTML = `
+    <div class="fav-form">
+      <div class="field"><label>Domaine / Producteur</label><input id="fv_domaine" value="${escHtml(v.domaine)}"></div>
+      <div class="row2">
+        <div class="field"><label>Appellation</label><input id="fv_appellation" value="${escHtml(v.appellation)}"></div>
+        <div class="field"><label>Millésime</label><input id="fv_millesime" type="number" inputmode="numeric" value="${escHtml(v.millesime)}"></div>
+      </div>
+      <div class="row2">
+        <div class="field"><label>Couleur</label><select id="fv_couleur"><option value="">—</option>${['Rouge','Blanc','Rosé','Effervescent','Liquoreux'].map(opt).join('')}</select></div>
+        <div class="field"><label>Cépages</label><input id="fv_cepages" value="${escHtml(v.cepages)}"></div>
+      </div>
+      <div class="sheet-actions" style="margin-top:4px;">
+        <button type="button" class="btn ghost" id="fvCancel">Annuler</button>
+        <button type="button" class="btn gold" id="fvSave">Ajouter à mes goûts</button>
+      </div>
+    </div>`;
+  document.getElementById('fvCancel').onclick = ()=>{ box.innerHTML = ''; document.getElementById('favStatus').textContent = ''; };
+  document.getElementById('fvSave').onclick = ()=>{
+    const f = id => document.getElementById(id).value.trim();
+    const fields = { domaine: f('fv_domaine'), appellation: f('fv_appellation'), millesime: f('fv_millesime'), couleur: f('fv_couleur'), cepages: f('fv_cepages'), format: v.format || '' };
+    if(!fields.domaine && !fields.appellation){ document.getElementById('favStatus').textContent = 'Indique au moins le domaine ou l\u2019appellation.'; return; }
+    addFavorite(fields);
+    box.innerHTML = '';
+    document.getElementById('favStatus').textContent = '';
+    drawFavorites();
+    showToast((fields.domaine || fields.appellation) + ' ajouté à tes goûts', null, null, 3000);
+  };
+}
+
+function drawFavorites(){
+  const list = document.getElementById('favList');
+  if(!list) return;
+  const favs = favorites();
+  list.innerHTML = favs.length
+    ? `<div class="fav-title">${favs.length} vin${favs.length > 1 ? 's' : ''} aimé${favs.length > 1 ? 's' : ''}</div>` + favs.map(b => `
+      <div class="hist-item">
+        <span class="mini ${wineClass(b.couleur)}"></span>
+        <span class="t"><b>${escHtml(b.domaine) || escHtml(b.appellation) || 'Sans nom'}</b><span>${escHtml([b.domaine ? b.appellation : '', b.millesime, b.cepages].filter(Boolean).join(' · '))}</span></span>
+        <button type="button" class="fav-del" data-id="${escHtml(b.id)}" aria-label="Retirer de mes goûts">✕</button>
+      </div>`).join('')
+    : '<div class="fav-empty">Aucun vin pour l\u2019instant. Ajoute ceux que tu as aimés, en cave comme au restaurant.</div>';
+  list.querySelectorAll('.fav-del').forEach(btn => {
+    btn.onclick = ()=>{
+      const b = state.bottles[btn.dataset.id];
+      if(!b) return;
+      b.statut = FAV + '_retire'; // gardé dans le Sheet, mais plus envoyé au sommelier
+      saveBottle(b);
+      drawFavorites();
+      showToast((b.domaine || b.appellation || 'Vin') + ' retiré de tes goûts', 'Annuler', ()=>{ b.statut = FAV; saveBottle(b); drawFavorites(); });
+    };
+  });
 }
 
 // ---------- SOMMELIER AU RESTAURANT ----------
@@ -2461,7 +2606,7 @@ function wireRestaurantMode(){
     listEl.querySelectorAll('button').forEach(b => {
       b.onclick = ()=>{ const [p] = photos.splice(parseInt(b.dataset.i), 1); URL.revokeObjectURL(p.url); drawPhotos(); };
     });
-    addBtn.textContent = photos.length ? '+ Ajouter une page' : '+ Photo de la carte des vins';
+    addBtn.textContent = photos.length ? '+ Ajouter une page' : '+ Photo de la carte (appareil ou galerie)';
     addBtn.disabled = photos.length >= 4;
   };
   addBtn.onclick = ()=> input.click();
@@ -2496,7 +2641,7 @@ async function submitRestaurantRequest(photos){
       body: JSON.stringify({
         action:'sommelier_restaurant',
         images: photos.map(p => ({ data: p.data, mime: p.mime })),
-        plats, budget, profil: PROFIL_GOUT
+        plats, budget, profil: profilComplet()
       })
     });
     if(!res.ok) throw new Error('Réponse serveur ' + res.status);
@@ -2559,7 +2704,7 @@ async function submitPairingRequest(){
     const res = await fetch(GAS_URL, {
       method:'POST',
       // Le profil de goût part dans un champ à part : le script l'ajoute aux consignes du sommelier.
-      body: JSON.stringify({ action:'suggerer_accord', contexte, bouteilles, profil: PROFIL_GOUT })
+      body: JSON.stringify({ action:'suggerer_accord', contexte, bouteilles, profil: profilComplet() })
     });
     if(!res.ok) throw new Error('Réponse serveur ' + res.status);
     const data = await res.json();
