@@ -468,6 +468,18 @@
   .vintage .btn{width:52px;min-height:48px;font-size:22px;padding:0;}
   .field .vintage input{flex:1;text-align:center;font-size:22px;font-family:'Fraunces',serif;min-height:48px;}
   .reuse-apo{font-size:12px;color:var(--text-dim);margin-top:6px;}
+  .mode-switch{display:flex;gap:4px;padding:4px;margin:6px 0 14px;border-radius:10px;background:#1d1813;border:1px solid #3a3226;}
+  .mode-switch button{flex:1;min-height:40px;border:0;border-radius:7px;background:none;color:#b9ad99;font-size:14px;font-weight:600;}
+  .mode-switch button.on{background:#c9a63f;color:#1a1407;}
+  .resto-photos{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:8px;}
+  .resto-photos:empty{display:none;}
+  .resto-thumb{position:relative;width:72px;height:96px;border-radius:6px;overflow:hidden;border:1px solid #3a3226;}
+  .resto-thumb img{width:100%;height:100%;object-fit:cover;display:block;}
+  .resto-thumb button{position:absolute;top:2px;right:2px;width:28px;height:28px;border-radius:50%;border:0;background:rgba(0,0,0,0.65);color:#fff;font-size:13px;}
+  .resto-best{font-family:'Inter',sans-serif;font-size:11px;font-weight:700;letter-spacing:0.06em;text-transform:uppercase;color:#1a1407;background:#c9a63f;border-radius:4px;padding:2px 6px;vertical-align:middle;}
+  .resto-note{font-size:13px;color:#d8cdb9;margin-bottom:10px;}
+  .resto-avoid{font-size:13px;color:var(--text-dim);border-left:3px solid #d0586f;padding:4px 0 4px 10px;margin:4px 0 10px;display:flex;flex-direction:column;gap:4px;}
+  .resto-avoid b{color:#e9dfcc;font-weight:600;}
   .hist-item .d{font-size:12px;color:var(--text-dim);white-space:nowrap;text-align:right;}
   .hist-item .restore{margin-top:4px;min-height:32px;padding:0 10px;border-radius:6px;border:1px solid #5a4f3d;background:none;color:#e0b94a;font-size:13px;font-weight:600;}
   .hist-item .mini{position:relative;flex-shrink:0;width:20px;height:20px;border-radius:50%;background:var(--glass-end);}
@@ -540,8 +552,8 @@
 
 <script>
 // ---------- PROFIL DE GOÛT (sommelier IA) ----------
-// Modifie librement ce texte : il est joint à chaque demande au sommelier
-// (« Qu'est-ce qu'on boit ce soir ? »). Il n'est PAS utilisé par le scan d'étiquette.
+// Modifie librement ce texte : il est envoyé au sommelier (dans ma cave et au
+// restaurant), qui l'ajoute à ses consignes. Il n'est PAS utilisé par le scan d'étiquette.
 const PROFIL_GOUT = `PROFIL DE GOÛT (Sébastien)
 
 Tendance générale : vins ronds, mûrs, fruités et généreux. Il aime la texture et le fruit. Il n'aime pas les vins tendus ou minéraux.
@@ -2170,7 +2182,7 @@ async function associatePositionTag(key, statusElId){
 // Remplace par l'URL de déploiement de ton Web App Apps Script (voir cave-apps-script.gs).
 const GAS_URL = 'https://script.google.com/macros/s/AKfycbxVS6Ui9PP4Ju4EZG1a7G5v_amxE1fOLtkqh3zhq4Wfq5-7jcqR-Ig9__W6TIn5dtXw/exec';
 
-function fileToBase64(file){
+function fileToBase64(file, maxDimension){
   // Redimensionne et compresse la photo avant envoi (une photo brute de
   // smartphone pèse plusieurs Mo — ça ralentit l'envoi et peut faire échouer
   // l'appel). On limite à 1400px de côté max, en JPEG qualité 0.82 — un cran
@@ -2181,7 +2193,7 @@ function fileToBase64(file){
     reader.onload = ()=>{
       const img = new Image();
       img.onload = ()=>{
-        const maxDim = 1400;
+        const maxDim = maxDimension || 1400;
         let { width, height } = img;
         if(width > height && width > maxDim){
           height = Math.round(height * (maxDim / width));
@@ -2383,13 +2395,36 @@ document.getElementById('pairingFab').onclick = openPairingSheet;
 
 function openPairingSheet(){
   sheetEl.innerHTML = `
-    <h2 class="serif">Qu'est-ce qu'on boit ce soir ?</h2>
-    <div class="sub">Décris le repas, l'occasion, le nombre de convives…</div>
-    <div class="field">
-      <textarea id="pairingContext" rows="4" placeholder="Ex : blanquette de veau, repas de semaine à deux"></textarea>
+    <h2 class="serif">Qu'est-ce qu'on boit ?</h2>
+    <div class="mode-switch" role="tablist">
+      <button type="button" role="tab" class="on" data-mode="cave" aria-selected="true">Dans ma cave</button>
+      <button type="button" role="tab" data-mode="resto" aria-selected="false">Au restaurant</button>
     </div>
-    <button type="button" class="btn gold" id="pairingSubmit" style="width:100%;margin-bottom:10px;">Proposer une bouteille</button>
-    <div id="pairingResults"></div>
+
+    <div id="modeCave">
+      <div class="sub">Décris le repas, l'occasion, le nombre de convives…</div>
+      <div class="field">
+        <textarea id="pairingContext" rows="4" placeholder="Ex : blanquette de veau, repas de semaine à deux"></textarea>
+      </div>
+      <button type="button" class="btn gold" id="pairingSubmit" style="width:100%;margin-bottom:10px;">Proposer une bouteille</button>
+      <div id="pairingResults"></div>
+    </div>
+
+    <div id="modeResto" hidden>
+      <div class="sub">Photographie la carte des vins (jusqu'à 4 pages), puis dis ce que vous mangez.</div>
+      <div class="resto-photos" id="restoPhotos"></div>
+      <button type="button" class="btn ghost" id="restoAddPhoto" style="width:100%;margin-bottom:12px;">+ Photo de la carte des vins</button>
+      <input type="file" id="restoPhotoInput" accept="image/*" capture="environment" multiple style="display:none;">
+      <div class="field"><label>Vos plats</label>
+        <textarea id="restoPlats" rows="2" placeholder="Ex : magret de canard et risotto aux cèpes"></textarea>
+      </div>
+      <div class="field"><label>Budget max (facultatif)</label>
+        <input id="restoBudget" type="number" inputmode="numeric" placeholder="€ pour la bouteille ou le verre">
+      </div>
+      <button type="button" class="btn gold" id="restoSubmit" style="width:100%;margin-bottom:10px;">Conseille-moi</button>
+      <div id="restoResults"></div>
+    </div>
+
     <div class="sheet-actions">
       <button class="btn ghost" id="cancelBtn" style="width:100%;">Fermer</button>
     </div>
@@ -2397,6 +2432,101 @@ function openPairingSheet(){
   overlay.classList.add('show');
   document.getElementById('cancelBtn').onclick = closeSheet;
   document.getElementById('pairingSubmit').onclick = submitPairingRequest;
+
+  sheetEl.querySelectorAll('.mode-switch button').forEach(btn => {
+    btn.onclick = ()=>{
+      const resto = btn.dataset.mode === 'resto';
+      sheetEl.querySelectorAll('.mode-switch button').forEach(b => {
+        b.classList.toggle('on', b === btn);
+        b.setAttribute('aria-selected', b === btn);
+      });
+      document.getElementById('modeCave').hidden = resto;
+      document.getElementById('modeResto').hidden = !resto;
+    };
+  });
+  wireRestaurantMode();
+}
+
+// ---------- SOMMELIER AU RESTAURANT ----------
+// Photos de la carte des vins + plats (+ budget) -> 2-3 vins de la carte, choisis selon PROFIL_GOUT.
+function wireRestaurantMode(){
+  const photos = []; // { data, mime, url }
+  const listEl = document.getElementById('restoPhotos');
+  const input = document.getElementById('restoPhotoInput');
+  const addBtn = document.getElementById('restoAddPhoto');
+  const drawPhotos = ()=>{
+    listEl.innerHTML = photos.map((p, i) =>
+      `<span class="resto-thumb"><img src="${p.url}" alt="Page ${i + 1} de la carte"><button type="button" data-i="${i}" aria-label="Retirer la photo ${i + 1}">✕</button></span>`
+    ).join('');
+    listEl.querySelectorAll('button').forEach(b => {
+      b.onclick = ()=>{ const [p] = photos.splice(parseInt(b.dataset.i), 1); URL.revokeObjectURL(p.url); drawPhotos(); };
+    });
+    addBtn.textContent = photos.length ? '+ Ajouter une page' : '+ Photo de la carte des vins';
+    addBtn.disabled = photos.length >= 4;
+  };
+  addBtn.onclick = ()=> input.click();
+  input.onchange = async ()=>{
+    const files = Array.from(input.files || []).slice(0, 4 - photos.length);
+    input.value = '';
+    for(const f of files){
+      try{
+        // Plus grand que pour une étiquette : une carte des vins est écrite petit.
+        const data = await fileToBase64(f, 2000);
+        photos.push({ data, mime:'image/jpeg', url: URL.createObjectURL(f) });
+      }catch(e){ /* photo illisible : ignorée */ }
+    }
+    drawPhotos();
+  };
+  document.getElementById('restoSubmit').onclick = ()=> submitRestaurantRequest(photos);
+}
+
+async function submitRestaurantRequest(photos){
+  const resultsEl = document.getElementById('restoResults');
+  const btn = document.getElementById('restoSubmit');
+  const plats = document.getElementById('restoPlats').value.trim();
+  const budget = document.getElementById('restoBudget').value.trim();
+  const note = (msg, color)=> resultsEl.innerHTML = `<div style="font-size:12px;color:${color || 'var(--text-dim)'};">${msg}</div>`;
+  if(photos.length === 0){ note('Ajoute au moins une photo de la carte des vins.'); return; }
+  if(!plats){ note('Dis ce que vous mangez, même brièvement.'); return; }
+  note('Le sommelier lit la carte… (quelques secondes)');
+  btn.disabled = true;
+  try{
+    const res = await fetch(GAS_URL, {
+      method:'POST',
+      body: JSON.stringify({
+        action:'sommelier_restaurant',
+        images: photos.map(p => ({ data: p.data, mime: p.mime })),
+        plats, budget, profil: PROFIL_GOUT
+      })
+    });
+    if(!res.ok) throw new Error('Réponse serveur ' + res.status);
+    const data = await res.json();
+    if(data.error) throw new Error(data.error);
+    renderRestaurantAdvice(data);
+  }catch(err){
+    note('Conseil impossible (' + escHtml(err.message) + ').', 'var(--wine-bright)');
+  }finally{
+    btn.disabled = false;
+  }
+}
+
+function renderRestaurantAdvice(data){
+  const resultsEl = document.getElementById('restoResults');
+  const sugg = data.suggestions || [];
+  const avoid = data.a_eviter || [];
+  let html = '';
+  if(data.remarque) html += `<div class="resto-note">${escHtml(data.remarque)}</div>`;
+  html += sugg.map((s, i) => `
+    <div class="pairing-card">
+      <h3 class="serif">${i === 0 ? '<span class="resto-best">Mon choix</span> ' : ''}${escHtml(s.nom) || 'Vin de la carte'}</h3>
+      <div class="sub">${escHtml([s.appellation, s.millesime].filter(Boolean).join(' '))}${(s.service || s.prix) ? ' — ' + escHtml([s.service, s.prix].filter(Boolean).join(' · ')) : ''}</div>
+      <div class="raison">${escHtml(s.raison)}</div>
+    </div>`).join('');
+  if(avoid.length){
+    html += `<div class="resto-avoid"><b>À éviter pour toi</b>` +
+      avoid.map(a => `<div>${escHtml(a.nom)}${a.raison ? ' — ' + escHtml(a.raison) : ''}</div>`).join('') + `</div>`;
+  }
+  resultsEl.innerHTML = html || '<div style="font-size:12px;color:var(--text-dim);">Aucune suggestion — essaie une photo plus nette de la carte.</div>';
 }
 
 function getAvailableBottlesForPairing(){
@@ -2428,13 +2558,8 @@ async function submitPairingRequest(){
   try{
     const res = await fetch(GAS_URL, {
       method:'POST',
-      // Le profil de goût est joint au texte du repas : le script Apps Script
-      // l'insère tel quel dans le prompt du sommelier.
-      body: JSON.stringify({
-        action:'suggerer_accord',
-        contexte: contexte + '\n\n---\nÀ prendre en compte pour choisir parmi les bouteilles de la cave :\n' + PROFIL_GOUT,
-        bouteilles
-      })
+      // Le profil de goût part dans un champ à part : le script l'ajoute aux consignes du sommelier.
+      body: JSON.stringify({ action:'suggerer_accord', contexte, bouteilles, profil: PROFIL_GOUT })
     });
     if(!res.ok) throw new Error('Réponse serveur ' + res.status);
     const data = await res.json();
