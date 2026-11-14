@@ -485,6 +485,17 @@
   .dc-wish{margin-top:8px;min-height:36px;padding:0 12px;border-radius:6px;border:1px solid #5a3a40;background:none;color:#d0586f;font-size:13px;font-weight:600;}
   .dc-wish:disabled{opacity:0.7;}
   .mode-switch button{font-size:13px;}
+  .imp-list{display:flex;flex-direction:column;gap:10px;margin-bottom:6px;}
+  .imp-item{display:flex;gap:10px;padding:10px;border:1px solid #3a3226;border-radius:8px;background:#1d1813;}
+  .imp-item img{width:64px;height:86px;object-fit:cover;border-radius:6px;flex-shrink:0;}
+  .imp-fields{flex:1;min-width:0;display:flex;flex-direction:column;gap:6px;}
+  .imp-fields input,.imp-fields select{width:100%;min-height:38px;padding:0 10px;font-size:14px;font-family:'Inter',sans-serif;background:var(--panel-2);color:var(--text);border:1px solid var(--line);border-radius:6px;}
+  .imp-fields input:disabled,.imp-fields select:disabled{opacity:0.5;}
+  .imp-row{display:flex;gap:6px;}
+  .imp-row input{flex:0 0 40%;}
+  .imp-keep{display:flex;align-items:center;gap:8px;font-size:14px;font-weight:600;color:#e9dfcc;}
+  .imp-keep input{width:20px;height:20px;min-height:0;accent-color:#c9a63f;}
+  .imp-note{font-size:12px;color:#d9ae3f;}
   .fav-status{font-size:12px;color:var(--text-dim);min-height:16px;margin-bottom:8px;}
   .fav-form{padding:12px;margin-bottom:12px;border:1px solid #3a3226;border-radius:8px;background:#1d1813;}
   .fav-title{font-size:13px;color:#b9ad99;margin:4px 0 2px;}
@@ -782,6 +793,7 @@ async function loadState(){
       }
     });
     applyPendingToState();
+    importSeedFavorites();
     saveToCache();
     flushPending();
   }catch(err){
@@ -2474,8 +2486,8 @@ function openPairingSheet(){
 
     <div id="modeGouts" hidden>
       <div class="sub">Les vins que tu as aimés, ici ou ailleurs. Le sommelier s'en sert, en plus de ton profil, pour te conseiller dans ta cave et au restaurant.</div>
-      <button type="button" class="btn gold" id="favPhotoBtn" style="width:100%;margin-bottom:6px;">+ Vin aimé, par photo de l'étiquette</button>
-      <input type="file" id="favPhotoInput" accept="image/*" style="display:none;">
+      <button type="button" class="btn gold" id="favPhotoBtn" style="width:100%;margin-bottom:6px;">+ Vins aimés, par photos d'étiquettes</button>
+      <input type="file" id="favPhotoInput" accept="image/*" multiple style="display:none;">
       <button type="button" class="btn ghost" id="favManualBtn" style="width:100%;margin-bottom:8px;">+ Saisir à la main</button>
       <div id="favStatus" class="fav-status"></div>
       <div id="favForm"></div>
@@ -2663,27 +2675,166 @@ function wireFavorites(){
   const input = document.getElementById('favPhotoInput');
   document.getElementById('favPhotoBtn').onclick = ()=> input.click();
   document.getElementById('favManualBtn').onclick = ()=>{ status.textContent = ''; showFavoriteForm({}); };
-  input.onchange = async ()=>{
-    const file = input.files && input.files[0];
+  input.onchange = ()=>{
+    const files = Array.from(input.files || []).slice(0, FAV_IMPORT_MAX);
+    const skipped = (input.files ? input.files.length : 0) - files.length;
     input.value = '';
-    if(!file) return;
-    status.textContent = 'Lecture de l\u2019étiquette…';
-    document.getElementById('favForm').innerHTML = '';
+    if(files.length) importFavoritePhotos(files, skipped);
+  };
+  drawFavorites();
+}
+
+// ---------- VINS AIMÉS À AJOUTER UNE FOIS DANS « MES GOÛTS » ----------
+// Lus sur des photos envoyées dans la conversation. Chaque vin a un identifiant
+// fixe : il est ajouté au Sheet une seule fois (après une synchronisation
+// réussie), puis plus jamais, même s'il est retiré ensuite de « Mes goûts ».
+const FAVORIS_A_IMPORTER = [
+  { id:'fav-bine-nilo-2020', domaine:'Binè — Ni·Lo', appellation:'Piemonte Barbera', millesime:'2020', couleur:'Rouge', cepages:'Barbera', format:'Magnum' },
+  { id:'fav-bine-nilo-2023', domaine:'Binè — Ni·Lo', appellation:'Piemonte Barbera', millesime:'2023', couleur:'Rouge', cepages:'Barbera' },
+  { id:'fav-crinquand-canons-du-jean-2019', domaine:'Julien Crinquand — Les Canons du Jean « Le S.A.V. du Jean »', appellation:'Jura (Les Arsures)', millesime:'2019', couleur:'Rouge' },
+  { id:'fav-camille-cayran-reserve-2009', domaine:'Camille Cayran — La Réserve', appellation:'Rasteau', millesime:'2009', couleur:'Rouge' },
+  { id:'fav-clos-colonna-2020', domaine:'Clos Colonna (Famille Leccia)', appellation:'Corse Sartène', millesime:'2020', couleur:'Rouge' },
+  { id:'fav-carpineto-chianti-2022', domaine:'Carpineto', appellation:'Chianti Classico', millesime:'2022', couleur:'Rouge', cepages:'Sangiovese' },
+  { id:'fav-breseyme-brezeme-2018', domaine:'Domaine de Bréseyme — Brézème', appellation:'Côtes du Rhône', millesime:'2018', couleur:'Rouge', cepages:'Syrah' },
+  { id:'fav-abbatucci-faustine-vv-2021', domaine:'Comte Abbatucci — Faustine Vieilles Vignes', appellation:'Corse', millesime:'2021', couleur:'Rouge' },
+  { id:'fav-clos-culombu-ecce-fructus-2020', domaine:'Clos Culombu — Storia di Ecce Fructus', appellation:'Corse', millesime:'2020', couleur:'Rouge' },
+  { id:'fav-cailhol-gautran-carretal', domaine:'Domaine Cailhol Gautran — Carretal', appellation:'Minervois', couleur:'Rouge' },
+  { id:'fav-chapoutier-quatuor', domaine:'M. Chapoutier — Quatuor', appellation:'Côte-Rôtie', couleur:'Rouge', cepages:'Syrah' },
+  { id:'fav-chapoutier-neve-2015', domaine:'M. Chapoutier — Neve', appellation:'Côte-Rôtie', millesime:'2015', couleur:'Rouge', cepages:'Syrah' },
+  { id:'fav-chemin-de-moscou-2017', domaine:'Chemin de Moscou (Domaine Gayda)', appellation:'Pays d\u2019Oc', millesime:'2017', couleur:'Rouge' },
+  { id:'fav-prunier-bonheur-monthelie-vignes-rondes-2018', domaine:'Pascal Prunier-Bonheur — Les Vignes Rondes', appellation:'Monthelie 1er Cru', millesime:'2018', couleur:'Rouge' },
+  { id:'fav-chapoutier-invitare', domaine:'M. Chapoutier — Invitare', appellation:'Condrieu', couleur:'Blanc', cepages:'Viognier' }
+];
+function importSeedFavorites(){
+  FAVORIS_A_IMPORTER.forEach(f => {
+    if(state.bottles[f.id]) return; // déjà dans le Sheet (même retiré depuis) : on n'y touche plus
+    const b = Object.assign({ statut: FAV, position: '', module: '', millesime: '', couleur: '', cepages: '', format: '' }, f,
+      { date_ajout: '2026-11-14T00:00:00.000Z' });
+    state.bottles[b.id] = b;
+    saveBottle(b);
+  });
+}
+
+// ---------- IMPORT DE PLUSIEURS PHOTOS D'ÉTIQUETTES ----------
+// Chaque photo est lue par la même lecture d'étiquette que pour ranger une
+// bouteille (2 en parallèle), puis tout est présenté en une liste à vérifier.
+const FAV_IMPORT_MAX = 20;
+async function importFavoritePhotos(files, skipped){
+  const status = document.getElementById('favStatus');
+  const box = document.getElementById('favForm');
+  const items = files.map(f => ({ file: f, url: URL.createObjectURL(f), state: 'attente', v: {}, keep: true }));
+  let done = 0;
+  const progress = ()=>{
+    status.textContent = done < items.length
+      ? 'Lecture des étiquettes… ' + done + ' / ' + items.length
+      : 'Vérifie, corrige si besoin, décoche ce que tu ne veux pas garder :';
+  };
+  progress();
+  drawImportReview(items);
+
+  const readOne = async (it)=>{
+    it.state = 'lecture'; drawImportItem(items, it);
     try{
-      // Même lecture d'étiquette que pour ranger une bouteille.
-      const base64 = await fileToBase64(file);
+      const base64 = await fileToBase64(it.file);
       const res = await fetch(GAS_URL, { method:'POST', body: JSON.stringify({ action:'ocr_etiquette', image: base64, mime:'image/jpeg' }) });
       if(!res.ok) throw new Error('Réponse serveur ' + res.status);
       const data = await res.json();
       if(data.error) throw new Error(data.error);
-      status.textContent = 'Vérifie et complète si besoin :';
-      showFavoriteForm(data);
+      it.v = data;
+      it.state = 'lu';
+      if(isAlreadyFavorite(data)){ it.keep = false; it.dup = true; }
+      if(!data.domaine && !data.appellation){ it.keep = false; }
     }catch(err){
-      status.textContent = 'Lecture impossible (' + err.message + '). Tu peux saisir le vin à la main.';
-      showFavoriteForm({});
+      it.state = 'echec';
+      it.keep = false;
     }
+    done++; progress(); drawImportItem(items, it);
   };
-  drawFavorites();
+  // 2 lectures à la fois : plus rapide, sans surcharger le script
+  let next = 0;
+  const worker = async ()=>{ while(next < items.length){ await readOne(items[next++]); } };
+  await Promise.all([worker(), worker()]);
+  if(skipped > 0) status.textContent += ' (' + skipped + ' photo(s) en trop ignorée(s) : ' + FAV_IMPORT_MAX + ' maximum à la fois)';
+  updateImportButton(items);
+}
+
+function isAlreadyFavorite(v){
+  const key = normalize([v.domaine, v.appellation, v.millesime].join('|'));
+  return favorites().some(f => normalize([f.domaine, f.appellation, f.millesime].join('|')) === key);
+}
+
+function drawImportReview(items){
+  const box = document.getElementById('favForm');
+  box.innerHTML = `
+    <div class="imp-list">${items.map((it, i) => `<div class="imp-item" id="imp_${i}"></div>`).join('')}</div>
+    <div class="sheet-actions" style="margin-top:4px;margin-bottom:14px;">
+      <button type="button" class="btn ghost" id="impCancel">Annuler</button>
+      <button type="button" class="btn gold" id="impSave" disabled>Ajouter à mes goûts</button>
+    </div>`;
+  items.forEach(it => drawImportItem(items, it));
+  document.getElementById('impCancel').onclick = ()=>{
+    items.forEach(it => URL.revokeObjectURL(it.url));
+    box.innerHTML = ''; document.getElementById('favStatus').textContent = '';
+  };
+  document.getElementById('impSave').onclick = ()=>{
+    let added = 0;
+    items.forEach((it, i) => {
+      if(!it.keep) return;
+      const el = document.getElementById('imp_' + i);
+      const f = name => (el.querySelector('[data-f="' + name + '"]') || {}).value || '';
+      const fields = { domaine: f('domaine').trim(), appellation: f('appellation').trim(), millesime: f('millesime').trim(),
+                       couleur: f('couleur'), cepages: it.v.cepages || '', format: it.v.format || '' };
+      if(!fields.domaine && !fields.appellation) return;
+      addFavorite(fields); added++;
+    });
+    items.forEach(it => URL.revokeObjectURL(it.url));
+    box.innerHTML = '';
+    document.getElementById('favStatus').textContent = '';
+    drawFavorites();
+    showToast(added + ' vin' + (added > 1 ? 's' : '') + ' ajouté' + (added > 1 ? 's' : '') + ' à tes goûts', null, null, 3500);
+  };
+}
+
+function drawImportItem(items, it){
+  const i = items.indexOf(it);
+  const el = document.getElementById('imp_' + i);
+  if(!el) return;
+  const v = it.v;
+  const opt = (c)=> `<option ${v.couleur === c ? 'selected' : ''}>${c}</option>`;
+  const note = it.state === 'attente' ? 'En attente…'
+    : it.state === 'lecture' ? 'Lecture…'
+    : it.state === 'echec' ? 'Étiquette illisible : complète à la main ou décoche.'
+    : it.dup ? 'Déjà dans tes goûts.'
+    : (!v.domaine && !v.appellation) ? 'Rien de lisible : complète à la main ou laisse décoché.' : '';
+  const busy = it.state === 'attente' || it.state === 'lecture';
+  el.innerHTML = `
+    <img src="${it.url}" alt="">
+    <div class="imp-fields">
+      <label class="imp-keep"><input type="checkbox" ${it.keep ? 'checked' : ''} ${busy ? 'disabled' : ''}> Garder</label>
+      ${note ? `<div class="imp-note">${note}</div>` : ''}
+      <input data-f="domaine" placeholder="Domaine" value="${escHtml(v.domaine)}" ${busy ? 'disabled' : ''}>
+      <input data-f="appellation" placeholder="Appellation" value="${escHtml(v.appellation)}" ${busy ? 'disabled' : ''}>
+      <div class="imp-row">
+        <input data-f="millesime" type="number" inputmode="numeric" placeholder="Année" value="${escHtml(v.millesime)}" ${busy ? 'disabled' : ''}>
+        <select data-f="couleur" ${busy ? 'disabled' : ''}><option value="">Couleur</option>${['Rouge','Blanc','Rosé','Effervescent','Liquoreux'].map(opt).join('')}</select>
+      </div>
+    </div>`;
+  const cb = el.querySelector('input[type="checkbox"]');
+  cb.onchange = ()=>{ it.keep = cb.checked; updateImportButton(items); };
+  // Saisir un domaine sur une photo décochée la recoche automatiquement
+  el.querySelectorAll('[data-f="domaine"],[data-f="appellation"]').forEach(inp => {
+    inp.addEventListener('input', ()=>{ if(!it.keep && !it.dup && inp.value.trim()){ it.keep = true; cb.checked = true; updateImportButton(items); } });
+  });
+  updateImportButton(items);
+}
+
+function updateImportButton(items){
+  const btn = document.getElementById('impSave');
+  if(!btn) return;
+  const busy = items.some(it => it.state === 'attente' || it.state === 'lecture');
+  const n = items.filter(it => it.keep).length;
+  btn.disabled = busy || n === 0;
+  btn.textContent = busy ? 'Lecture en cours…' : (n ? 'Ajouter ' + n + ' vin' + (n > 1 ? 's' : '') : 'Rien à ajouter');
 }
 
 function showFavoriteForm(v){
