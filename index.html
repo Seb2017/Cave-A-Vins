@@ -1075,7 +1075,7 @@ function computeCellSize(cols, extraPadding, maxSize){
   const available = main.clientWidth - 40 - (extraPadding || 0); // padding du module + marge de sécurité
   const gapTotal = 6 * (cols - 1);
   const raw = Math.floor((available - gapTotal) / cols);
-  return Math.max(34, Math.min(maxSize || 46, raw));
+  return Math.max(30, Math.min(maxSize || 46, raw)); // 30 px mini : une cave de 8 colonnes tient sur un petit écran
 }
 
 function couleurHex(c){
@@ -1361,6 +1361,15 @@ document.addEventListener('pointerdown', (e)=>{
 window.addEventListener('scroll', hideBubble, { passive: true });
 document.addEventListener('scroll', (e)=>{ if(e.target !== document) hideBubble(); }, { capture: true, passive: true });
 window.addEventListener('resize', hideBubble);
+// Rotation de l'écran ou changement de largeur : on recalcule la taille des cases
+// (on ignore les changements de hauteur seuls, comme la barre d'adresse de Safari).
+let lastLayoutWidth = window.innerWidth, resizeTimer = null;
+window.addEventListener('resize', ()=>{
+  if(window.innerWidth === lastLayoutWidth) return;
+  lastLayoutWidth = window.innerWidth;
+  clearTimeout(resizeTimer);
+  resizeTimer = setTimeout(()=>{ if(state.loaded && !state.configMode) render(); }, 150);
+});
 document.addEventListener('keydown', (e)=>{ if(e.key === 'Escape') hideBubble(); });
 
 // ---------- HABILLAGE DES BOUTEILLES (purement visuel) ----------
@@ -1463,9 +1472,12 @@ function renderModule(mod, positionMap){
   grid.className = 'grid';
   grid.style.cssText = isCave
     ? 'display:flex;flex-direction:column;gap:0;width:100%;min-width:max-content;'
-    : 'display:flex;flex-direction:column;gap:6px;width:max-content;';
+    : 'display:flex;flex-direction:column;gap:6px;width:max-content;margin:0 auto;';
   const depth = mod.depth || 1;
-  const cellSize = computeCellSize(mod.cols, isCave ? 36 : 0, isCave ? 72 : 46);
+  // Taille des cases adaptée à la largeur de l'écran, pour tous les modules
+  // (cadre de la cave à vin ou cadre simple), en tenant compte du décalage en quinconce.
+  const largeurEnCases = mod.alignment === 'quinconce' ? mod.cols + 0.5 : mod.cols;
+  const cellSize = computeCellSize(largeurEnCases, isCave ? 36 : 28, isCave ? 72 : 84);
   const quinconce = mod.alignment === 'quinconce';
   const dividerAfter = (isCave && mod.rows >= 4) ? Math.ceil(mod.rows / 2) - 1 : -1;
   for(let r=0;r<mod.rows;r++){
