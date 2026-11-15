@@ -1,6 +1,6 @@
 {
   "_lisezmoi": "Réglages du script Apps Script de la cave. Le script relit ce fichier toutes les 5 minutes : pas besoin de republier le script pour qu'un changement ici soit pris en compte. Ne jamais mettre de clé API ici.",
-  "version": 2,
+  "version": 3,
   "anthropic_version": "2023-06-01",
   "profil_intro": "\n\nPROFIL DE GOÛT DE L'UTILISATEUR — tiens-en compte en priorité dans tes choix et tes explications, sans sacrifier la justesse de l'accord :\n",
   "actions": {
@@ -88,6 +88,27 @@
       "message_refus": "Le sommelier n'a pas pu faire cette recherche. Réessaie en changeant un critère.",
       "system": "Tu es le sommelier personnel de l'utilisateur. Ta mission : lui faire DÉCOUVRIR des vins qu'il ne connaît pas encore et qui correspondent à ses goûts (profil de goût et vins coups de cœur ci-dessous). Propose 4 vins réels, de domaines différents. Au moins un doit venir d'une région ou d'un cépage qu'il ne cite pas, pour élargir ses horizons sans trahir son style. On te donne la liste des vins qu'il possède ou connaît déjà : ne propose jamais l'un d'eux, ni une autre cuvée d'un domaine de cette liste. Respecte la couleur, l'occasion ou le plat, et le budget s'ils sont indiqués. Vérifie par la recherche web (5 recherches au maximum, ciblées) que chaque cuvée existe et se trouve dans le commerce, et relève une fourchette de prix public constatée chez des cavistes ou des sites de vente. N'invente jamais un domaine, une cuvée ou un prix : si tu n'as pas pu vérifier un prix, laisse le champ vide. Ta réponse finale doit être UNIQUEMENT un objet JSON valide, sans texte autour, sans balises markdown, sans citations ni références : { \"suggestions\": [ { \"domaine\": \"...\", \"cuvee\": \"nom de la cuvée, ou vide\", \"appellation\": \"...\", \"couleur\": \"Rouge, Blanc, Rosé, Effervescent ou Liquoreux\", \"cepages\": \"...\", \"prix\": \"fourchette constatée, ex. 15-20 €, ou vide\", \"raison\": \"1-2 phrases en français : pourquoi ce vin devrait lui plaire, en le rapprochant d'un vin qu'il aime quand c'est pertinent\", \"ou_trouver\": \"où l'acheter : cavistes, vente en ligne, au domaine...\" } ], \"remarque\": \"une phrase facultative, sinon chaîne vide\" }",
       "user": "{{#couleur}}Couleur souhaitée : {{couleur}}\n{{/couleur}}{{#occasion}}Occasion ou plat : {{occasion}}\n{{/occasion}}{{#budget}}Budget maximum par bouteille : {{budget}} €\n{{/budget}}\nVins qu'il possède ou connaît déjà (à ne pas proposer) :\n{{deja_connus|aucun}}\n\nFais-moi découvrir de nouveaux vins. Réponds en JSON strict."
+    },
+    "inventaire_photo": {
+      "model": "claude-opus-5-5",
+      "max_tokens": 16000,
+      "output_config": {
+        "effort": "medium"
+      },
+      "fallbacks": "default",
+      "betas": [
+        "server-side-fallback-2026-07-01"
+      ],
+      "images": {
+        "champ": "image",
+        "champ_mime": "mime",
+        "max": 1,
+        "obligatoire": true,
+        "message_si_absent": "Aucune photo du rangement"
+      },
+      "message_refus": "La photo n'a pas pu être analysée. Réessaie avec une autre photo.",
+      "system": "Tu fais l'inventaire visuel d'un rangement à bouteilles de vin (cave à vin, casier, étagère) à partir d'une photo prise de face. On te décrit sa disposition exacte : nombre de rangées et de colonnes, alignement, profondeur. Pour CHAQUE emplacement, indique : \"P\" si une bouteille y est visible, \"V\" si l'emplacement est visible et vide, \"?\" s'il est impossible à juger (masqué, hors cadre, reflet, trop sombre, flou). La rangée 1 est celle du haut, la colonne 1 celle de gauche, vue de face. Repère d'abord les rangées (clayettes, étagères), puis compte soigneusement les emplacements de chaque rangée de gauche à droite. En quinconce, une rangée sur deux est décalée d'une demi-case. Avec 2 bouteilles en profondeur, mets \"P\" dès qu'au moins une bouteille est visible dans la case. N'invente rien : en cas de doute, mets \"?\". Une erreur fait croire à l'utilisateur qu'une bouteille a disparu. Si la photo ne montre pas ce rangement, ou si tu ne peux pas retrouver la grille, renvoie une grille vide et explique-le dans 'remarque'. Réponds UNIQUEMENT avec un objet JSON valide, sans texte autour, sans balises markdown : { \"grille\": [ [\"P\", \"V\", \"?\"] ], \"remarque\": \"une phrase facultative (photo de biais, partie coupée...), sinon chaîne vide\" }. La grille contient exactement une liste par rangée, du haut vers le bas, chacune avec exactement le nombre de colonnes indiqué.",
+      "user": "Rangement photographié : {{description}}\n\nFais l'inventaire de chaque emplacement. Réponds en JSON strict."
     }
   }
 }
