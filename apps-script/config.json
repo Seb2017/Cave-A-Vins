@@ -1,6 +1,6 @@
 {
   "_lisezmoi": "Réglages du script Apps Script de la cave. Le script relit ce fichier toutes les 5 minutes : pas besoin de republier le script pour qu'un changement ici soit pris en compte. Ne jamais mettre de clé API ici.",
-  "version": 3,
+  "version": 4,
   "anthropic_version": "2023-06-01",
   "profil_intro": "\n\nPROFIL DE GOÛT DE L'UTILISATEUR — tiens-en compte en priorité dans tes choix et tes explications, sans sacrifier la justesse de l'accord :\n",
   "actions": {
@@ -109,6 +109,20 @@
       "message_refus": "La photo n'a pas pu être analysée. Réessaie avec une autre photo.",
       "system": "Tu fais l'inventaire visuel d'un rangement à bouteilles de vin (cave à vin, casier, étagère) à partir d'une photo prise de face. On te décrit sa disposition exacte : nombre de rangées et de colonnes, alignement, profondeur. Pour CHAQUE emplacement, indique : \"P\" si une bouteille y est visible, \"V\" si l'emplacement est visible et vide, \"?\" s'il est impossible à juger (masqué, hors cadre, reflet, trop sombre, flou). La rangée 1 est celle du haut, la colonne 1 celle de gauche, vue de face. Repère d'abord les rangées (clayettes, étagères), puis compte soigneusement les emplacements de chaque rangée de gauche à droite. En quinconce, une rangée sur deux est décalée d'une demi-case. Avec 2 bouteilles en profondeur, mets \"P\" dès qu'au moins une bouteille est visible dans la case. N'invente rien : en cas de doute, mets \"?\". Une erreur fait croire à l'utilisateur qu'une bouteille a disparu. Si la photo ne montre pas ce rangement, ou si tu ne peux pas retrouver la grille, renvoie une grille vide et explique-le dans 'remarque'. Réponds UNIQUEMENT avec un objet JSON valide, sans texte autour, sans balises markdown : { \"grille\": [ [\"P\", \"V\", \"?\"] ], \"remarque\": \"une phrase facultative (photo de biais, partie coupée...), sinon chaîne vide\" }. La grille contient exactement une liste par rangée, du haut vers le bas, chacune avec exactement le nombre de colonnes indiqué.",
       "user": "Rangement photographié : {{description}}\n\nFais l'inventaire de chaque emplacement. Réponds en JSON strict."
+    },
+    "profil_vin": {
+      "model": "claude-opus-5-5",
+      "max_tokens": 16000,
+      "output_config": {
+        "effort": "low"
+      },
+      "fallbacks": "default",
+      "betas": [
+        "server-side-fallback-2026-07-01"
+      ],
+      "message_refus": "Le profil de ce vin n'a pas pu être établi.",
+      "system": "Tu es sommelier. Pour le vin décrit, donne son profil gustatif typique et des accords mets-vins. Appuie-toi sur le domaine, l'appellation, le millésime, la couleur et les cépages. Si tu ne connais pas précisément ce vin, donne le profil typique de son appellation et de son style, et précise-le dans 'note'. Notes de 0 à 5 (entiers) : corps (léger à puissant), tanins (0 pour un vin sans tanins perceptibles, comme la plupart des blancs et rosés), acidite (souple à vive), sucre (sec à liquoreux). Réponds UNIQUEMENT avec un objet JSON valide, sans texte autour, sans balises markdown : { \"corps\": 0, \"tanins\": 0, \"acidite\": 0, \"sucre\": 0, \"aromes\": [\"3 à 5 arômes typiques, en français\"], \"plats\": [\"4 plats concrets qui l'accompagnent bien, en français\"], \"style\": \"une phrase qui décrit le vin en bouche\", \"note\": \"vide si le vin est connu, sinon 'profil typique de l'appellation'\" }",
+      "user": "Vin : {{join:domaine,appellation,millesime,couleur,cepages}}. Réponds en JSON strict."
     }
   }
 }
