@@ -496,6 +496,13 @@
   .imp-keep{display:flex;align-items:center;gap:8px;font-size:14px;font-weight:600;color:#e9dfcc;}
   .imp-keep input{width:20px;height:20px;min-height:0;accent-color:#c9a63f;}
   .imp-note{font-size:12px;color:#d9ae3f;}
+  .place-banner{position:fixed;left:12px;right:84px;bottom:24px;z-index:150;background:var(--gold);color:#1c1710;border-radius:10px;padding:10px 12px;font-size:14px;display:flex;flex-direction:column;gap:10px;box-shadow:0 8px 20px rgba(0,0,0,0.55);}
+  body.placing #toasts{bottom:150px;}
+  body.placing main{padding-bottom:140px;}
+  .place-actions{display:flex;gap:8px;}
+  .place-actions .btn{flex:1;min-height:40px;}
+  .place-banner .btn{background:#1c1710;color:#f3e9d6;border:0;}
+  .place-banner .btn.ghost{background:none;border:1px solid #1c1710;color:#1c1710;}
   .fav-status{font-size:12px;color:var(--text-dim);min-height:16px;margin-bottom:8px;}
   .fav-form{padding:12px;margin-bottom:12px;border:1px solid #3a3226;border-radius:8px;background:#1d1813;}
   .fav-title{font-size:13px;color:#b9ad99;margin:4px 0 2px;}
@@ -965,9 +972,26 @@ function render(){
   roomHint.textContent = state.configMode ? 'Mode configuration' : room.label;
   main.innerHTML = '';
   if(typeof hideBubble === 'function') hideBubble();
+  document.body.classList.toggle('placing', !!state.placeMode);
   // Onglets toujours synchronisés avec la pièce affichée (ex. après « Voir dans la cave »)
   document.querySelectorAll('.tab').forEach(t=> t.classList.toggle('active', t.dataset.room === state.activeRoom));
   renderTools();
+
+  if(state.placeMode){
+    const pm = state.placeMode;
+    const banner = document.createElement('div');
+    banner.className = 'place-banner';
+    banner.innerHTML = `<span><strong>${escHtml(pm.label)}</strong> : ${pm.total - pm.remaining} / ${pm.total} rangée${pm.total - pm.remaining > 1 ? 's' : ''}.
+      Touche ${pm.remaining > 1 ? 'les ' + pm.remaining + ' cases vides' : 'la case vide'} où ranger ${pm.remaining > 1 ? 'les autres' : 'la dernière'}.</span>
+      <span class="place-actions"><button type="button" class="btn" id="placeAuto">Placer à la suite</button><button type="button" class="btn ghost" id="placeStop">Terminer</button></span>`;
+    main.appendChild(banner);
+    banner.querySelector('#placeAuto').onclick = autoPlace;
+    banner.querySelector('#placeStop').onclick = ()=>{
+      const left = pm.remaining;
+      state.placeMode = null; render();
+      if(left > 0) showToast(left + ' bouteille(s) non rangée(s) — ajoute-les plus tard si besoin', null, null, 3500);
+    };
+  }
 
   if(state.moveMode){
     const banner = document.createElement('div');
@@ -1298,7 +1322,7 @@ function attachCellPress(el, mod, r, c, key){
   const cancel = ()=>{ clearTimeout(timer); timer = null; };
   el.addEventListener('pointerdown', (e)=>{
     longFired = false;
-    if(state.moveMode || !getPositionMap()[key] || (e.pointerType === 'mouse' && e.button !== 0)) return;
+    if(state.moveMode || state.placeMode || !getPositionMap()[key] || (e.pointerType === 'mouse' && e.button !== 0)) return;
     startX = e.clientX; startY = e.clientY;
     cancel();
     timer = setTimeout(()=>{
@@ -1319,6 +1343,7 @@ function attachCellPress(el, mod, r, c, key){
   el.addEventListener('click', (e)=>{
     e.stopPropagation();
     if(longFired){ longFired = false; return; } // la fiche est déjà ouverte
+    if(state.placeMode){ placeCopyAt(mod, key); return; }
     if(state.moveMode){ moveBottleTo(mod, r, c, key); return; }
     if(!getPositionMap()[key]){ openSheet(mod, r, c, key); return; }
     if(bubbleKey === key){ hideBubble(); return; } // second appui court : referme
@@ -1546,6 +1571,76 @@ function moveBottleTo(mod, r, c, key){
   if(move.restore) showToast((bottle.domaine || 'Bouteille') + ' remise en cave', null, null, 4000);
 }
 
+// ---------- RANGEMENT DE PLUSIEURS EXEMPLAIRES ----------
+function startPlacement(template, remaining, total){
+  state.moveMode = null;
+  state.placeMode = { template, remaining, total, lastKey: template.position, label: template.domaine || 'bouteille sans nom' };
+  const found = findModuleById(template.module);
+  if(found) state.activeRoom = found.roomKey;
+  render();
+}
+
+function placeCopyAt(mod, key){
+  const pm = state.placeMode;
+  if(getPositionMap()[key]){ showToast('Case déjà occupée, choisis une case vide', null, null, 2500); return; }
+  const copy = Object.assign({}, pm.template, {
+    id: generateId(), module: mod.id, position: key, qte: 1, date_ajout: new Date().toISOString()
+  });
+  state.bottles[copy.id] = copy;
+  saveBottle(copy);
+  pm.remaining--; pm.lastKey = key;
+  if(pm.remaining <= 0){
+    state.placeMode = null;
+    showToast(pm.total + ' bouteilles de ' + pm.label + ' rangées', null, null, 3500);
+  }
+  render();
+}
+
+// Toutes les cases d'un module, dans l'ordre de lecture (rangée par rangée).
+function moduleKeys(mod){
+  const keys = [];
+  const depth = mod.depth || 1;
+  for(let r = 0; r < mod.rows; r++) for(let c = 0; c < mod.cols; c++){
+    if(depth === 1) keys.push(`${mod.id}:${r}:${c}`);
+    else { keys.push(`${mod.id}:${r}:${c}:1`); keys.push(`${mod.id}:${r}:${c}:0`); }
+  }
+  return keys;
+}
+
+// « Placer à la suite » : cases vides qui suivent la dernière posée, dans le
+// même module puis dans les autres modules de la même pièce.
+function autoPlace(){
+  const pm = state.placeMode;
+  const found = findModuleById(String(pm.lastKey).split(':')[0]) || findModuleById(pm.template.module);
+  if(!found) return;
+  const mods = state.rooms[found.roomKey].modules;
+  const start = mods.indexOf(found.mod);
+  const ordered = mods.slice(start).concat(mods.slice(0, start));
+  const occupied = getPositionMap();
+  const candidates = [];
+  ordered.forEach((m, i) => {
+    let keys = moduleKeys(m);
+    if(i === 0){ const at = keys.indexOf(pm.lastKey); keys = keys.slice(at + 1).concat(keys.slice(0, Math.max(at, 0))); }
+    keys.forEach(k => { if(!occupied[k]) candidates.push({ m, k }); });
+  });
+  const total = pm.total, label = pm.label;
+  const n = Math.min(pm.remaining, candidates.length);
+  for(let i = 0; i < n; i++){
+    const { m, k } = candidates[i];
+    const copy = Object.assign({}, pm.template, { id: generateId(), module: m.id, position: k, qte: 1, date_ajout: new Date().toISOString() });
+    state.bottles[copy.id] = copy;
+    saveBottle(copy);
+    pm.remaining--; pm.lastKey = k;
+  }
+  if(pm.remaining <= 0){
+    state.placeMode = null;
+    showToast(total + ' bouteilles de ' + label + ' rangées', null, null, 3500);
+  } else {
+    showToast('Plus de case vide dans cette pièce : ' + pm.remaining + ' bouteille(s) à ranger ailleurs', null, null, 4000);
+  }
+  render();
+}
+
 function startRestoreBottle(bottle){
   state.moveMode = { bottleId: bottle.id, fromKey: null, label: bottle.domaine || 'bouteille sans nom', restore: true };
   closeSheet();
@@ -1639,7 +1734,7 @@ function ficheForm(mod, key, prefill){
     </div>
     <div class="row2">
       <div class="field"><label>Prix d'achat (€)</label><input id="f_prix" type="number" value="${esc(b.prix)}"></div>
-      <div class="field"><label>Quantité</label><input id="f_qte" type="number" value="${b.qte||1}" min="1"></div>
+      <div class="field"><label>${prefill && prefill.id ? 'Quantité' : 'Nombre de bouteilles'}</label><input id="f_qte" type="number" inputmode="numeric" value="${b.qte||1}" min="1" max="48"></div>
     </div>
     <div class="sheet-actions">
       <button class="btn ghost" id="cancelBtn">Annuler</button>
@@ -1755,6 +1850,14 @@ function openReuseConfirm(mod, key, ref){
       </div>
       <div class="reuse-apo" id="reuseApo"></div>
     </div>
+    <div class="field">
+      <label>Nombre de bouteilles</label>
+      <div class="vintage">
+        <button type="button" class="btn ghost" id="nMinus" aria-label="Une bouteille de moins">−</button>
+        <input id="reuseNombre" type="number" inputmode="numeric" value="1" min="1" max="48">
+        <button type="button" class="btn ghost" id="nPlus" aria-label="Une bouteille de plus">+</button>
+      </div>
+    </div>
     <div class="sheet-actions">
       <button class="btn ghost" id="reuseEdit">Modifier les détails</button>
       <button class="btn gold" id="reuseSave">Ranger la bouteille</button>
@@ -1780,6 +1883,10 @@ function openReuseConfirm(mod, key, ref){
       : 'Pas de fenêtre d\u2019apogée sur la fiche d\u2019origine.';
   };
   const step = (d)=>{ const n = parseInt(mInput.value) || new Date().getFullYear(); mInput.value = n + d; refresh(); };
+  const nInput = document.getElementById('reuseNombre');
+  const nStep = (d)=>{ nInput.value = Math.max(1, Math.min(48, (parseInt(nInput.value) || 1) + d)); };
+  document.getElementById('nMinus').onclick = ()=> nStep(-1);
+  document.getElementById('nPlus').onclick = ()=> nStep(1);
   document.getElementById('vMinus').onclick = ()=> step(-1);
   document.getElementById('vPlus').onclick = ()=> step(1);
   mInput.addEventListener('input', refresh);
@@ -1806,6 +1913,8 @@ function openReuseConfirm(mod, key, ref){
     state.bottles[bottle.id] = bottle;
     saveBottle(bottle);
     closeSheet();
+    const nombre = Math.max(1, Math.min(48, parseInt(nInput.value) || 1));
+    if(nombre > 1){ startPlacement(bottle, nombre - 1, nombre); return; }
     render();
     showToast((bottle.domaine || 'Bouteille') + (bottle.millesime ? ' ' + bottle.millesime : '') + ' rangée', null, null, 3500);
   };
@@ -1966,10 +2075,15 @@ function wireSheet(mod, key, existing){
         position: key,
         date_ajout: existing ? (existing.date_ajout || new Date().toISOString()) : new Date().toISOString(),
       };
+      // Nouvelle bouteille en plusieurs exemplaires : une par case. Celle-ci va
+      // dans la case choisie, les autres se rangent ensuite sans refaire de scan.
+      const nombre = existing ? 1 : Math.max(1, Math.min(48, parseInt(bottle.qte) || 1));
+      if(!existing) bottle.qte = 1;
       state.bottles[bottle.id] = bottle;
       saveBottle(bottle);
       closeSheet();
-      render();
+      if(nombre > 1) startPlacement(bottle, nombre - 1, nombre);
+      else render();
     };
   }
 
