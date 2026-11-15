@@ -503,6 +503,19 @@
   .place-actions .btn{flex:1;min-height:40px;}
   .place-banner .btn{background:#1c1710;color:#f3e9d6;border:0;}
   .place-banner .btn.ghost{background:none;border:1px solid #1c1710;color:#1c1710;}
+  .module-head-right{display:flex;align-items:center;gap:10px;flex-shrink:0;}
+  .module-head h3{min-width:0;}
+  .module-type{white-space:nowrap;}
+  @media (max-width: 420px){
+    .module-head-right .module-type{display:none;} /* petit écran : le nom et le bouton photo suffisent */
+  }
+  .inv-btn{display:inline-flex;align-items:center;justify-content:center;width:36px;height:36px;border-radius:50%;border:1px solid #5a4f3d;background:none;color:#d8cdb9;padding:0;}
+  .cave-glass .inv-btn{border-color:rgba(255,255,255,0.2);color:#e9dfcc;}
+  .inv-photo{display:block;width:100%;max-height:240px;object-fit:contain;border-radius:8px;margin:4px 0 10px;background:#000;}
+  .inv-title{font-size:13px;font-weight:600;color:#e9dfcc;margin:12px 0 2px;}
+  .inv-ok{font-size:14px;color:#9fc79f;margin:6px 0;}
+  .inv-unsure{font-size:12px;color:var(--text-dim);line-height:1.5;}
+  .inv-tip{font-size:12px;color:var(--text-dim);margin-top:12px;}
   .fav-status{font-size:12px;color:var(--text-dim);min-height:16px;margin-bottom:8px;}
   .fav-form{padding:12px;margin-bottom:12px;border:1px solid #3a3226;border-radius:8px;background:#1d1813;}
   .fav-title{font-size:13px;color:#b9ad99;margin:4px 0 2px;}
@@ -1451,7 +1464,10 @@ function renderModule(mod, positionMap){
 
   const head = document.createElement('div');
   head.className = 'module-head';
-  head.innerHTML = `<h3 class="serif">${escHtml(mod.name)}</h3><span class="module-type">${escHtml(mod.type)}</span>`;
+  head.innerHTML = `<h3 class="serif">${escHtml(mod.name)}</h3><span class="module-head-right"><span class="module-type">${escHtml(mod.type)}</span>` +
+    `<button type="button" class="inv-btn" aria-label="Inventaire par photo de ${escHtml(mod.name)}" title="Inventaire par photo">` +
+    `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 8h3l2-2.5h6L17 8h3v11H4z"/><circle cx="12" cy="13" r="3.6"/></svg></button></span>`;
+  head.querySelector('.inv-btn').onclick = ()=> startPhotoInventory(mod);
   wrap.appendChild(head);
 
   // Habillage « cave à vin » (façade verre, clayettes bois) pour les modules de type cave
@@ -1581,6 +1597,128 @@ function moveBottleTo(mod, r, c, key){
   state.moveMode = null;
   render();
   if(move.restore) showToast((bottle.domaine || 'Bouteille') + ' remise en cave', null, null, 4000);
+}
+
+// ---------- INVENTAIRE PAR PHOTO ----------
+// Photo de face d'un module -> l'IA indique case par case plein / vide / incertain
+// (action inventaire_photo, réglée dans config.json) -> comparaison avec l'appli.
+const invInput = document.createElement('input');
+invInput.type = 'file'; invInput.accept = 'image/*'; invInput.style.display = 'none';
+document.body.appendChild(invInput);
+let invModule = null;
+
+function startPhotoInventory(mod){
+  invModule = mod;
+  invInput.value = '';
+  invInput.click();
+}
+invInput.onchange = ()=>{
+  const file = invInput.files && invInput.files[0];
+  invInput.value = '';
+  if(file && invModule) runPhotoInventory(invModule, file);
+};
+
+function moduleDescription(mod){
+  const isCave = /cave/i.test(mod.type || '');
+  return `« ${mod.name} » (${mod.type || 'rangement'}) : ${mod.rows} rangée${mod.rows > 1 ? 's' : ''} de ${mod.cols} emplacement${mod.cols > 1 ? 's' : ''}` +
+    (mod.alignment === 'quinconce' ? ', alignement en quinconce (une rangée sur deux décalée d\u2019une demi-case)' : '') +
+    ((mod.depth || 1) > 1 ? ', 2 bouteilles en profondeur par emplacement' : '') +
+    (isCave ? ', cave à vin réfrigérée : bouteilles couchées vues de face (culot ou goulot), sauf la rangée du bas où elles sont presque debout' : '') + '.';
+}
+
+// Bouteilles enregistrées dans une case (1 ou 2 selon la profondeur)
+function bottlesInCell(mod, r, c){
+  const map = getPositionMap();
+  const keys = (mod.depth || 1) > 1 ? [`${mod.id}:${r}:${c}:0`, `${mod.id}:${r}:${c}:1`] : [`${mod.id}:${r}:${c}`];
+  return keys.map(k => map[k]).filter(Boolean);
+}
+
+async function runPhotoInventory(mod, file){
+  sheetEl.innerHTML = `
+    <h2 class="serif">Inventaire — ${escHtml(mod.name)}</h2>
+    <div class="sub">Analyse de la photo, case par case… (environ une demi-minute)</div>
+    <div class="sheet-actions"><button class="btn ghost" id="cancelBtn" style="width:100%;">Fermer</button></div>`;
+  overlay.classList.add('show');
+  document.getElementById('cancelBtn').onclick = closeSheet;
+  try{
+    const image = await fileToBase64(file, 2000);
+    const res = await fetch(GAS_URL, { method:'POST', body: JSON.stringify({ action:'inventaire_photo', image, mime:'image/jpeg', description: moduleDescription(mod) }) });
+    if(!res.ok) throw new Error('Réponse serveur ' + res.status);
+    const data = await res.json();
+    if(data.error) throw new Error(data.error);
+    showInventoryResult(mod, data, URL.createObjectURL(file));
+  }catch(err){
+    sheetEl.querySelector('.sub').innerHTML = `<span style="color:var(--wine-bright);">Inventaire impossible (${escHtml(err.message)}).</span>`;
+    if(err.message === 'action inconnue') showConfigDiagnostic(sheetEl.querySelector('.sub'));
+  }
+}
+
+function showInventoryResult(mod, data, photoUrl){
+  const g = Array.isArray(data.grille) ? data.grille : [];
+  const valid = g.length === mod.rows && g.every(row => Array.isArray(row) && row.length === mod.cols);
+  const head = `<h2 class="serif">Inventaire — ${escHtml(mod.name)}</h2>`;
+  const close = `<div class="sheet-actions"><button class="btn ghost" id="cancelBtn" style="width:100%;">Fermer</button></div>`;
+  if(!valid){
+    sheetEl.innerHTML = head + `<div class="sub">La grille de la photo n\u2019a pas pu être retrouvée${data.remarque ? ' : ' + escHtml(data.remarque) : ''}. Reprends la photo bien de face, porte ouverte, avec tout le rangement dans le cadre.</div>` + close;
+    document.getElementById('cancelBtn').onclick = closeSheet;
+    return;
+  }
+  const missing = [], unknown = [], unsure = [];
+  let ok = 0;
+  for(let r = 0; r < mod.rows; r++) for(let c = 0; c < mod.cols; c++){
+    const seen = String(g[r][c]).trim().toUpperCase();
+    const bs = bottlesInCell(mod, r, c);
+    const where = `Rangée ${r + 1}, place ${c + 1}`;
+    if(seen === 'P' && bs.length === 0) unknown.push({ r, c, where });
+    else if(seen === 'V' && bs.length > 0) missing.push({ r, c, where, bs });
+    else if(seen !== 'P' && seen !== 'V') unsure.push({ where, bs });
+    else ok++;
+  }
+  const total = mod.rows * mod.cols;
+  const keyOf = (r, c) => (mod.depth || 1) > 1 ? `${mod.id}:${r}:${c}:1` : `${mod.id}:${r}:${c}`;
+  const label = b => escHtml([b.domaine || 'Sans nom', b.appellation, b.millesime].filter(Boolean).join(' · '));
+  sheetEl.innerHTML = head + `
+    <div class="sub">${total} emplacements : <b>${ok} conformes</b>${missing.length ? ', ' + missing.length + ' bouteille' + (missing.length > 1 ? 's' : '') + ' absente' + (missing.length > 1 ? 's' : '') : ''}${unknown.length ? ', ' + unknown.length + ' non enregistrée' + (unknown.length > 1 ? 's' : '') : ''}${unsure.length ? ', ' + unsure.length + ' incertain' + (unsure.length > 1 ? 's' : '') : ''}.</div>
+    ${data.remarque ? `<div class="resto-note">${escHtml(data.remarque)}</div>` : ''}
+    <img class="inv-photo" src="${photoUrl}" alt="Photo analysée">
+    ${(!missing.length && !unknown.length) ? '<div class="inv-ok">✓ Tout correspond à l\u2019appli.</div>' : ''}
+    ${missing.length ? `<div class="inv-title">Vides sur la photo, mais enregistrées</div>` + missing.map((m, i) => m.bs.map((b, j) => `
+      <div class="hist-item inv-item">
+        <span class="mini ${wineClass(b.couleur)}"></span>
+        <span class="t"><b>${label(b)}</b><span>${m.where}</span></span>
+        <span class="d"><button type="button" class="restore loved" data-out="${escHtml(b.id)}">Sortie / bue</button><br><button type="button" class="restore" data-see="${escHtml(b.position)}">Voir</button></span>
+      </div>`).join('')).join('') : ''}
+    ${unknown.length ? `<div class="inv-title">Bouteilles sur la photo, absentes de l\u2019appli</div>` + unknown.map(u => `
+      <div class="hist-item inv-item">
+        <span class="mini w-autre"></span>
+        <span class="t"><b>Bouteille non enregistrée</b><span>${u.where}</span></span>
+        <span class="d"><button type="button" class="restore" data-add="${u.r}:${u.c}">Ajouter</button></span>
+      </div>`).join('') : ''}
+    ${unsure.length ? `<div class="inv-title">Impossible à vérifier sur la photo</div><div class="inv-unsure">${unsure.map(u => escHtml(u.where) + (u.bs.length ? ' (' + u.bs.map(b => escHtml(b.domaine || '')).join(', ') + ')' : '')).join(' · ')}</div>` : ''}
+    <div class="inv-tip">L\u2019analyse peut se tromper : vérifie d\u2019un coup d\u2019œil avant de corriger.</div>` + close;
+  document.getElementById('cancelBtn').onclick = closeSheet;
+  sheetEl.querySelectorAll('[data-out]').forEach(btn => {
+    btn.onclick = ()=>{
+      const b = state.bottles[btn.dataset.out];
+      if(!b || !b.position) return;
+      markBottleOut(b);
+      btn.textContent = '✓ Sortie'; btn.disabled = true;
+      const see = btn.parentNode.querySelector('[data-see]'); if(see) see.remove();
+    };
+  });
+  sheetEl.querySelectorAll('[data-see]').forEach(btn => {
+    btn.onclick = ()=>{
+      const b = Object.values(state.bottles).find(x => x.position === btn.dataset.see);
+      closeSheet();
+      if(b) locateBottle(b);
+    };
+  });
+  sheetEl.querySelectorAll('[data-add]').forEach(btn => {
+    btn.onclick = ()=>{
+      const [r, c] = btn.dataset.add.split(':').map(Number);
+      openSheet(mod, r, c, keyOf(r, c));
+    };
+  });
 }
 
 // ---------- RANGEMENT DE PLUSIEURS EXEMPLAIRES ----------
